@@ -145,6 +145,13 @@ If you previously installed the legacy CLI, update to the new `openclaw` name us
 2. Compile: `bun run compile`
 3. Press F5 to launch the Extension Development Host
 
+## Related Editor Plugins
+
+OpenClaw is also available for other editors:
+
+- **Neovim**: [openclaw.nvim](https://github.com/OpenKnots/openclaw.nvim) - Lua plugin with lualine integration
+- **JetBrains IDEs**: [openclaw-jetbrains](https://github.com/OpenKnots/openclaw-jetbrains) - IntelliJ IDEA, WebStorm, PyCharm, etc.
+
 ## License
 
 [MIT](./LICENSE)

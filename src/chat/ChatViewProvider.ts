@@ -72,6 +72,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private sidebarView: vscode.WebviewView | undefined;
     private popOutPanel: vscode.WebviewPanel | undefined;
+    private debugPanel: vscode.WebviewPanel | undefined;
     private editorChangeDisposable: vscode.Disposable | undefined;
     private selectionChangeDisposable: vscode.Disposable | undefined;
     private diagnosticChangeDisposable: vscode.Disposable | undefined;
@@ -159,6 +160,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    attachDebugPanel(panel: vscode.WebviewPanel): void {
+        this.debugPanel = panel;
+        this.setupWebviewListeners(panel.webview);
+        this.bootstrapWebview();
+        panel.onDidDispose(() => {
+            this.debugPanel = undefined;
+        });
+    }
+
     newSession(): void {
         this.createThread({ inheritFromActive: true, activate: true, insertAfterActive: true });
         this.emitState();
@@ -169,6 +179,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             thread.service.dispose();
         }
         this.popOutPanel?.dispose();
+        this.debugPanel?.dispose();
         this.editorChangeDisposable?.dispose();
         this.selectionChangeDisposable?.dispose();
         this.diagnosticChangeDisposable?.dispose();
@@ -595,7 +606,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private getAvailableModels(): string[] {
         const config = vscode.workspace.getConfiguration('openclaw');
         return config.get<string[]>('chat.models', [
-            'codex', 'gemini', 'opencode', 'claude', 'gpt-4o', 'ollama'
+            'codex', 'claude'
         ]);
     }
 
@@ -1020,30 +1031,38 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private emitState(): void {
-        const config = vscode.workspace.getConfiguration('openclaw');
-        const dimension = config.get<string>('chat.dimension', '1x1');
-        const collapseCompleted = config.get<boolean>('chat.collapseCompleted', true);
-        const base = {
-            type: 'state',
-            activeThreadId: this.activeThreadId,
-            visibleThreadIds: this.visibleThreadIds,
-            models: this.getAvailableModels(),
-            dimension,
-            collapseCompleted
-        };
-        const threads = this.getThreadSnapshots();
+        try {
+            const config = vscode.workspace.getConfiguration('openclaw');
+            const dimension = config.get<string>('chat.dimension', '1x1');
+            const collapseCompleted = config.get<boolean>('chat.collapseCompleted', true);
+            const base = {
+                type: 'state',
+                activeThreadId: this.activeThreadId,
+                visibleThreadIds: this.visibleThreadIds,
+                models: this.getAvailableModels(),
+                dimension,
+                collapseCompleted
+            };
+            const threads = this.getThreadSnapshots();
 
-        for (const webview of [this.sidebarView?.webview, this.popOutPanel?.webview]) {
-            if (!webview) { continue; }
-            const enriched = threads.map(t => ({
-                ...t,
-                pendingAttachments: t.pendingAttachments.map(att =>
-                    att.type === 'image'
-                        ? { ...att, previewUri: webview.asWebviewUri(vscode.Uri.file(att.path)).toString() }
-                        : att
-                )
-            }));
-            webview.postMessage({ ...base, threads: enriched });
+            for (const webview of [this.sidebarView?.webview, this.popOutPanel?.webview, this.debugPanel?.webview]) {
+                if (!webview) { continue; }
+                const enriched = threads.map(t => ({
+                    ...t,
+                    pendingAttachments: t.pendingAttachments.map(att => {
+                        if (att.type !== 'image') { return att; }
+                        try {
+                            return { ...att, previewUri: webview.asWebviewUri(vscode.Uri.file(att.path)).toString() };
+                        } catch {
+                            return att;
+                        }
+                    })
+                }));
+                webview.postMessage({ ...base, threads: enriched });
+            }
+        } catch (err) {
+            log.error('emitState failed', err);
+            this.postToAll({ type: 'state', threads: [], activeThreadId: '', visibleThreadIds: [], models: [], dimension: '1x1', collapseCompleted: true });
         }
     }
 
@@ -1093,6 +1112,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private postToAll(message: Record<string, unknown>): void {
         this.sidebarView?.webview.postMessage(message);
         this.popOutPanel?.webview.postMessage(message);
+        this.debugPanel?.webview.postMessage(message);
     }
 
     private async openFileInEditor(filePath: string, lineStr?: string): Promise<void> {

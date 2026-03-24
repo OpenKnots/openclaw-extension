@@ -4,6 +4,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify, TextDecoder, TextEncoder } from 'util';
 import { ChatViewProvider } from './chat/ChatViewProvider';
+import { openDebugChatPanel } from './chat/debugPanel';
 
 let statusBarItem: vscode.StatusBarItem;
 let terminal: vscode.Terminal | undefined;
@@ -205,6 +206,15 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('openclaw.chat.newSession', () => {
             chatViewProvider?.newSession();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('openclaw.chat.debug', () => {
+            if (chatViewProvider) {
+                const panel = openDebugChatPanel(context.extensionUri);
+                chatViewProvider.attachDebugPanel(panel);
+            }
         })
     );
 

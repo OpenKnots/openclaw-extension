@@ -173,7 +173,7 @@ export class ChatService {
         agent: string,
         permissions: string,
         prompt: string,
-        options?: { thinkingLevel?: string; temperature?: number; maxTokens?: number }
+        _options?: { thinkingLevel?: string; temperature?: number; maxTokens?: number }
     ): string[] {
         const args: string[] = [];
 
@@ -182,18 +182,6 @@ export class ChatService {
         const permFlag = this.permissionFlag(permissions);
         if (permFlag) {
             args.push(permFlag);
-        }
-
-        if (options?.thinkingLevel && options.thinkingLevel !== 'none') {
-            args.push('--thinking', options.thinkingLevel);
-        }
-
-        if (options?.temperature !== undefined && options.temperature !== 0.7) {
-            args.push('--temperature', String(options.temperature));
-        }
-
-        if (options?.maxTokens && options.maxTokens > 0) {
-            args.push('--max-tokens', String(options.maxTokens));
         }
 
         if (agent && agent !== 'codex') {

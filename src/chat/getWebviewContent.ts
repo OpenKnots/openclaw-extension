@@ -969,6 +969,42 @@ export function getWebviewContent(
             max-width: 280px;
         }
 
+        .openclaw-crash {
+            padding: 16px;
+            margin: 10px;
+            border-radius: 10px;
+            background: rgba(244, 135, 113, 0.08);
+            border: 1px solid var(--vscode-errorForeground, #f48771);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .openclaw-crash summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--vscode-errorForeground, #f48771);
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .openclaw-crash summary::before {
+            content: '\\26A0';
+        }
+
+        .openclaw-crash pre {
+            margin-top: 8px;
+            padding: 8px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.2);
+            font-size: 11px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
         pre {
             overflow: auto;
             background: rgba(128, 128, 128, 0.14);
@@ -1040,6 +1076,34 @@ export function getWebviewContent(
 
     <script nonce="${nonce}">
         (function() {
+            var _crashLog = [];
+
+            function _showCrash(label, err) {
+                var msg = (err && err.stack) ? err.stack : String(err);
+                _crashLog.push({ label: label, msg: msg, ts: new Date().toISOString() });
+                console.error('[OpenClaw] ' + label + ':', err);
+                var target = document.getElementById('paneGrid') || document.body;
+                var box = document.createElement('details');
+                box.className = 'openclaw-crash';
+                box.open = true;
+                box.innerHTML =
+                    '<summary>' + label + '</summary>' +
+                    '<pre>' + msg.replace(/</g, '&lt;') + '</pre>' +
+                    '<div style="margin-top:6px;opacity:0.6;font-size:11px">' +
+                        'State: threads=' + (typeof state !== 'undefined' ? (state.threads || []).length : '?') +
+                        ', dim=' + (typeof currentDimension !== 'undefined' ? currentDimension : '?') +
+                    '</div>';
+                target.appendChild(box);
+            }
+
+            window.addEventListener('error', function(event) {
+                _showCrash('Uncaught error: ' + (event.message || 'unknown'), event.error || event.message);
+            });
+
+            window.addEventListener('unhandledrejection', function(event) {
+                _showCrash('Unhandled promise rejection', event.reason);
+            });
+
             var vscode = acquireVsCodeApi();
             var paneGrid = document.getElementById('paneGrid');
             var dimensionSelect = document.getElementById('dimensionSelect');
@@ -1681,15 +1745,23 @@ export function getWebviewContent(
             }
 
             function renderState(preserve) {
-                cleanupDrafts();
+                try {
+                    cleanupDrafts();
+                } catch (e) {
+                    console.warn('[OpenClaw] cleanupDrafts failed:', e);
+                }
 
                 var savedScrolls = Object.create(null);
-                var oldBodies = paneGrid.querySelectorAll('.pane-body');
-                for (var i = 0; i < oldBodies.length; i++) {
-                    var paneEl = oldBodies[i].closest('.pane');
-                    if (paneEl && paneEl.dataset.threadId) {
-                        savedScrolls[paneEl.dataset.threadId] = oldBodies[i].scrollTop;
+                try {
+                    var oldBodies = paneGrid.querySelectorAll('.pane-body');
+                    for (var i = 0; i < oldBodies.length; i++) {
+                        var paneEl = oldBodies[i].closest('.pane');
+                        if (paneEl && paneEl.dataset.threadId) {
+                            savedScrolls[paneEl.dataset.threadId] = oldBodies[i].scrollTop;
+                        }
                     }
+                } catch (e) {
+                    console.warn('[OpenClaw] scroll save failed:', e);
                 }
 
                 paneGrid.innerHTML = '';
@@ -1700,27 +1772,39 @@ export function getWebviewContent(
                 }
 
                 state.threads.forEach(function(thread) {
-                    paneGrid.appendChild(renderPane(thread));
+                    try {
+                        paneGrid.appendChild(renderPane(thread));
+                    } catch (e) {
+                        _showCrash('Render failed for thread #' + (thread.index || '?') + ' (' + thread.id + ')', e);
+                    }
                 });
 
                 state.threads.forEach(function(thread) {
-                    if (userScrolledUp[thread.id] && savedScrolls[thread.id] != null) {
-                        var paneEl = paneGrid.querySelector('.pane[data-thread-id="' + thread.id + '"] .pane-body');
-                        if (paneEl) {
-                            paneEl.scrollTop = savedScrolls[thread.id];
+                    try {
+                        if (userScrolledUp[thread.id] && savedScrolls[thread.id] != null) {
+                            var paneEl = paneGrid.querySelector('.pane[data-thread-id="' + thread.id + '"] .pane-body');
+                            if (paneEl) {
+                                paneEl.scrollTop = savedScrolls[thread.id];
+                            }
                         }
+                    } catch (e) {
+                        console.warn('[OpenClaw] scroll restore failed:', e);
                     }
                 });
 
                 var restore = preserve || {};
                 if (restore.threadId) {
-                    var textarea = paneGrid.querySelector('.composer-input[data-thread-id="' + restore.threadId + '"]');
-                    if (textarea) {
-                        textarea.focus();
-                        if (typeof restore.selectionStart === 'number' && typeof restore.selectionEnd === 'number') {
-                            textarea.setSelectionRange(restore.selectionStart, restore.selectionEnd);
+                    try {
+                        var textarea = paneGrid.querySelector('.composer-input[data-thread-id="' + restore.threadId + '"]');
+                        if (textarea) {
+                            textarea.focus();
+                            if (typeof restore.selectionStart === 'number' && typeof restore.selectionEnd === 'number') {
+                                textarea.setSelectionRange(restore.selectionStart, restore.selectionEnd);
+                            }
+                            autoResizeTextarea(textarea);
                         }
-                        autoResizeTextarea(textarea);
+                    } catch (e) {
+                        console.warn('[OpenClaw] focus restore failed:', e);
                     }
                 }
             }
@@ -2353,7 +2437,17 @@ export function getWebviewContent(
             });
 
             window.addEventListener('message', function(event) {
-                var message = event.data;
+                var message;
+                try { message = event.data; } catch (e) {
+                    _showCrash('Failed to read message data', e);
+                    return;
+                }
+                try { _handleMessage(message); } catch (e) {
+                    _showCrash('Message handler crashed (type=' + (message && message.type) + ')', e);
+                }
+            });
+
+            function _handleMessage(message) {
                 if (message.type === 'slashCommands') {
                     slashCommands = message.commands || [];
                     return;
@@ -2451,7 +2545,7 @@ export function getWebviewContent(
                         }
                     }
                 }
-            });
+            }
 
             function hasFileDrag(dataTransfer) {
                 if (!dataTransfer || !dataTransfer.types) {
@@ -2525,9 +2619,17 @@ export function getWebviewContent(
                 return paths;
             }
 
-            renderState();
-            vscode.postMessage({ type: 'requestState' });
-            vscode.postMessage({ type: 'requestRecommendations' });
+            try {
+                renderState();
+            } catch (e) {
+                _showCrash('Initial render failed', e);
+            }
+            try {
+                vscode.postMessage({ type: 'requestState' });
+                vscode.postMessage({ type: 'requestRecommendations' });
+            } catch (e) {
+                _showCrash('Failed to request initial state from extension host', e);
+            }
         })();
     </script>
 </body>

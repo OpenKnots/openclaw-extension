@@ -68,6 +68,10 @@
       {
         "command": "openclaw.chat.newSession",
         "title": "OpenClaw: New Chat Session"
+      },
+      {
+        "command": "openclaw.chat.debug",
+        "title": "OpenClaw: Debug Chat Panel"
       }
     ],
     "viewsContainers": {
@@ -142,11 +146,7 @@
           },
           "default": [
             "codex",
-            "gemini",
-            "opencode",
-            "claude",
-            "gpt-4o",
-            "ollama"
+            "claude"
           ],
           "description": "Available models shown in the chat model picker"
         },
@@ -229,9 +229,7 @@
   },
   "dependencies": {
     "@create-markdown/core": "^2.0.0",
-    "@create-markdown/preview": "^2.0.0",
-    "build": "^0.1.4",
-    "pnpm": "^10.32.1"
+    "@create-markdown/preview": "^2.0.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

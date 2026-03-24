@@ -2,24 +2,28 @@
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="2400" y2="900" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#07060B"/>
-      <stop offset="55%" stop-color="#0E0B1F"/>
-      <stop offset="100%" stop-color="#150824"/>
+      <stop offset="55%" stop-color="#14070D"/>
+      <stop offset="100%" stop-color="#22070D"/>
     </linearGradient>
     <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(760 380) rotate(25) scale(560 460)">
-      <stop offset="0%" stop-color="#8B53FF" stop-opacity="0.75"/>
-      <stop offset="55%" stop-color="#8B53FF" stop-opacity="0.25"/>
-      <stop offset="100%" stop-color="#8B53FF" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#F80615" stop-opacity="0.72"/>
+      <stop offset="55%" stop-color="#F80615" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#F80615" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="edge" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1900 520) rotate(-15) scale(620 460)">
-      <stop offset="0%" stop-color="#3B1E6A" stop-opacity="0.45"/>
-      <stop offset="100%" stop-color="#3B1E6A" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#7A0911" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#7A0911" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#C08BFF"/>
-      <stop offset="100%" stop-color="#7E45FF"/>
+      <stop offset="0%" stop-color="#FF6A72"/>
+      <stop offset="100%" stop-color="#F80615"/>
+    </linearGradient>
+    <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F80615"/>
+      <stop offset="100%" stop-color="#991B1B"/>
     </linearGradient>
     <filter id="logoShadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#2C1A4B" flood-opacity="0.7"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#4A0B12" flood-opacity="0.7"/>
     </filter>
   </defs>
 
@@ -28,21 +32,41 @@
   <rect x="0" y="0" width="2400" height="900" fill="url(#edge)"/>
 
   <path d="M1690 130 L2220 360" stroke="url(#accent)" stroke-opacity="0.38" stroke-width="6" stroke-linecap="round"/>
-  <path d="M1650 660 C1880 520 2160 520 2300 700" stroke="#8B5CFF" stroke-opacity="0.28" stroke-width="5" stroke-linecap="round"/>
+  <path d="M1650 660 C1880 520 2160 520 2300 700" stroke="#F34D59" stroke-opacity="0.28" stroke-width="5" stroke-linecap="round"/>
 
-  <circle cx="2030" cy="240" r="6" fill="#B68CFF" opacity="0.6"/>
-  <circle cx="2080" cy="270" r="4" fill="#B68CFF" opacity="0.5"/>
-  <circle cx="1980" cy="720" r="5" fill="#8B5CFF" opacity="0.5"/>
+  <circle cx="2030" cy="240" r="6" fill="#FF9AA2" opacity="0.6"/>
+  <circle cx="2080" cy="270" r="4" fill="#FF9AA2" opacity="0.5"/>
+  <circle cx="1980" cy="720" r="5" fill="#F34D59" opacity="0.5"/>
 
-  <image href="image.png" x="210" y="110" width="660" height="660" preserveAspectRatio="xMidYMid meet" filter="url(#logoShadow)"/>
-  <image href="image.png" x="1560" y="190" width="760" height="760" preserveAspectRatio="xMidYMid meet" opacity="0.08"/>
+  <g transform="translate(210 110) scale(5.5)" filter="url(#logoShadow)">
+    <path d="M60 10 C30 10 15 35 15 55 C15 75 30 95 45 100 L45 110 L55 110 L55 100 C55 100 60 102 65 100 L65 110 L75 110 L75 100 C90 95 105 75 105 55 C105 35 90 10 60 10Z" fill="url(#logo-gradient)"/>
+    <path d="M20 45 C5 40 0 50 5 60 C10 70 20 65 25 55 C28 48 25 45 20 45Z" fill="url(#logo-gradient)"/>
+    <path d="M100 45 C115 40 120 50 115 60 C110 70 100 65 95 55 C92 48 95 45 100 45Z" fill="url(#logo-gradient)"/>
+    <path d="M45 15 Q35 5 30 8" stroke="#F80615" stroke-width="3" stroke-linecap="round"/>
+    <path d="M75 15 Q85 5 90 8" stroke="#F80615" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="45" cy="35" r="6" fill="#050810"/>
+    <circle cx="75" cy="35" r="6" fill="#050810"/>
+    <circle cx="46" cy="34" r="2.5" fill="#00E5CC"/>
+    <circle cx="76" cy="34" r="2.5" fill="#00E5CC"/>
+  </g>
+  <g transform="translate(1560 190) scale(6.3333333333)" opacity="0.08">
+    <path d="M60 10 C30 10 15 35 15 55 C15 75 30 95 45 100 L45 110 L55 110 L55 100 C55 100 60 102 65 100 L65 110 L75 110 L75 100 C90 95 105 75 105 55 C105 35 90 10 60 10Z" fill="url(#logo-gradient)"/>
+    <path d="M20 45 C5 40 0 50 5 60 C10 70 20 65 25 55 C28 48 25 45 20 45Z" fill="url(#logo-gradient)"/>
+    <path d="M100 45 C115 40 120 50 115 60 C110 70 100 65 95 55 C92 48 95 45 100 45Z" fill="url(#logo-gradient)"/>
+    <path d="M45 15 Q35 5 30 8" stroke="#F80615" stroke-width="3" stroke-linecap="round"/>
+    <path d="M75 15 Q85 5 90 8" stroke="#F80615" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="45" cy="35" r="6" fill="#050810"/>
+    <circle cx="75" cy="35" r="6" fill="#050810"/>
+    <circle cx="46" cy="34" r="2.5" fill="#00E5CC"/>
+    <circle cx="76" cy="34" r="2.5" fill="#00E5CC"/>
+  </g>
 
   <text x="1350" y="385" fill="#F6F3FF" font-size="128" font-weight="700" font-family="Inter, Segoe UI, Arial, sans-serif" letter-spacing="2">
     OpenClaw Extension
   </text>
-  <text x="1350" y="455" fill="#CFC6F2" font-size="36" font-weight="500" font-family="Inter, Segoe UI, Arial, sans-serif" letter-spacing="4">
+  <text x="1350" y="455" fill="#F3C4C8" font-size="36" font-weight="500" font-family="Inter, Segoe UI, Arial, sans-serif" letter-spacing="4">
     Threaded by OpenKnot
   </text>
 
-  <path d="M980 560 C1180 520 1320 560 1500 640" stroke="#6F46E8" stroke-opacity="0.4" stroke-width="4" stroke-linecap="round"/>
+  <path d="M980 560 C1180 520 1320 560 1500 640" stroke="#B3121D" stroke-opacity="0.4" stroke-width="4" stroke-linecap="round"/>
 </svg>

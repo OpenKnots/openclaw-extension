@@ -23,6 +23,13 @@ describe('getWebviewContent', () => {
         expect(html).not.toContain("var recHtml = '';");
     });
 
+    it('uses the OpenClaw branding red for webview accents', () => {
+        const html = renderHTML();
+
+        expect(html).toContain('--openclaw-brand-red: #F80615');
+        expect(html).toContain('color: var(--openclaw-brand-red);');
+    });
+
     it('keeps the active slash command visible after rerenders', () => {
         const html = renderHTML();
 

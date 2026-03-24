@@ -24,6 +24,14 @@ export function getWebviewContent(
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'none'; img-src ${cspSource}; font-src ${cspSource}; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <style nonce="${nonce}">
+        :root {
+            --openclaw-brand-red: #F80615;
+            --openclaw-brand-red-hover: #CF0511;
+            --openclaw-brand-red-soft: rgba(248, 6, 21, 0.12);
+            --openclaw-brand-red-strong: rgba(248, 6, 21, 0.22);
+            --openclaw-brand-red-border: rgba(248, 6, 21, 0.32);
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
@@ -54,9 +62,9 @@ export function getWebviewContent(
             align-items: center;
             gap: 8px;
             padding: 10px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid var(--openclaw-brand-red-border);
             background:
-                linear-gradient(135deg, rgba(0, 122, 204, 0.12), transparent 58%),
+                linear-gradient(135deg, rgba(248, 6, 21, 0.16), transparent 58%),
                 var(--vscode-sideBar-background, var(--vscode-editor-background));
         }
 
@@ -65,7 +73,8 @@ export function getWebviewContent(
             font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            opacity: 0.78;
+            color: var(--openclaw-brand-red);
+            opacity: 0.94;
         }
 
         .header-subtitle {
@@ -93,8 +102,8 @@ export function getWebviewContent(
 
         .icon-btn:hover {
             opacity: 1;
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(255, 255, 255, 0.08);
+            background: var(--openclaw-brand-red-soft);
+            border-color: var(--openclaw-brand-red-border);
         }
 
         .workspace {
@@ -127,8 +136,8 @@ export function getWebviewContent(
         }
 
         .pane.active {
-            border-color: var(--vscode-focusBorder, #007acc);
-            box-shadow: inset 0 0 0 1px rgba(0, 122, 204, 0.25);
+            border-color: var(--openclaw-brand-red);
+            box-shadow: inset 0 0 0 1px var(--openclaw-brand-red-strong);
         }
 
         .pane.collapsed {
@@ -255,7 +264,7 @@ export function getWebviewContent(
         .context-bar-fill {
             height: 100%;
             border-radius: 3px;
-            background: var(--vscode-textLink-foreground, #3794ff);
+            background: var(--openclaw-brand-red);
             transition: width 0.3s ease;
         }
 
@@ -336,7 +345,7 @@ export function getWebviewContent(
 
         .message-user {
             padding-left: 10px;
-            border-left: 2px solid var(--vscode-focusBorder, #007acc);
+            border-left: 2px solid var(--openclaw-brand-red);
             opacity: 0.78;
         }
 
@@ -365,7 +374,7 @@ export function getWebviewContent(
             width: 6px;
             height: 14px;
             margin-left: 2px;
-            background: var(--vscode-textLink-foreground, #3794ff);
+            background: var(--openclaw-brand-red);
             border-radius: 1px;
             vertical-align: text-bottom;
             animation: blink 0.8s step-end infinite;
@@ -546,12 +555,12 @@ export function getWebviewContent(
         }
 
         .composer-card:focus-within {
-            border-color: var(--vscode-focusBorder, #007acc);
+            border-color: var(--openclaw-brand-red);
         }
 
         .composer-card.drag-active {
-            border-color: var(--vscode-focusBorder, #007acc);
-            box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.22);
+            border-color: var(--openclaw-brand-red);
+            box-shadow: 0 0 0 1px var(--openclaw-brand-red-strong);
         }
 
         .drop-overlay {
@@ -562,9 +571,9 @@ export function getWebviewContent(
             align-items: center;
             justify-content: center;
             gap: 4px;
-            background: rgba(0, 122, 204, 0.10);
+            background: var(--openclaw-brand-red-soft);
             backdrop-filter: blur(2px);
-            border: 2px dashed var(--vscode-focusBorder, #007acc);
+            border: 2px dashed var(--openclaw-brand-red);
             border-radius: 14px;
             z-index: 2;
             pointer-events: none;
@@ -578,7 +587,7 @@ export function getWebviewContent(
         .drop-overlay-label {
             font-size: 12px;
             font-weight: 600;
-            color: var(--vscode-textLink-foreground, #3794ff);
+            color: var(--openclaw-brand-red);
         }
 
         .drop-overlay.visible {
@@ -734,11 +743,11 @@ export function getWebviewContent(
         }
 
         .att-pill.att-image {
-            border-color: rgba(0, 122, 204, 0.25);
+            border-color: var(--openclaw-brand-red-border);
         }
 
         .att-pill.att-image .att-pill-icon {
-            color: var(--vscode-textLink-foreground, #3794ff);
+            color: var(--openclaw-brand-red);
         }
 
         .att-pill-thumb {
@@ -824,12 +833,12 @@ export function getWebviewContent(
         .btn-send {
             margin-left: auto;
             border-radius: 999px;
-            background: var(--vscode-button-background, #007acc);
+            background: var(--openclaw-brand-red);
             color: var(--vscode-button-foreground, #fff);
         }
 
         .btn-send:hover {
-            background: var(--vscode-button-hoverBackground, #0062a3);
+            background: var(--openclaw-brand-red-hover);
         }
 
         .btn-send.streaming {
@@ -1070,15 +1079,20 @@ export function getWebviewContent(
             padding: 0 6px;
             font-size: 11px;
             border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--openclaw-brand-red-border);
+            background: rgba(248, 6, 21, 0.08);
             color: inherit;
             cursor: pointer;
         }
 
         .dimension-select:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(248, 6, 21, 0.14);
+            border-color: rgba(248, 6, 21, 0.42);
+        }
+
+        .dimension-select:focus-visible {
+            outline: 1px solid var(--openclaw-brand-red);
+            outline-offset: 1px;
         }
 
         @media (max-width: 780px) {

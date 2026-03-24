@@ -6,6 +6,26 @@ A full-featured VS Code companion for [OpenClaw](https://docs.openclaw.ai) — c
 
 > Built by [OpenKnot](https://openknot.ai)
 
+## Screenshots
+
+### Chat Panel
+
+> Placeholder screenshot: add `assets/images/readme-chat-panel.png`
+>
+> Show the OpenClaw sidebar chat with threaded panes, slash commands, `@` file mentions, attachments, and a streamed response.
+
+### Security Hardening
+
+> Placeholder screenshot: add `assets/images/readme-hardening.png`
+>
+> Show the hardening flow or access summary from the sidebar or command palette.
+
+### Model Setup Wizard
+
+> Placeholder screenshot: add `assets/images/readme-model-setup.png`
+>
+> Show provider selection plus the follow-up options for docs, config, and auth profiles.
+
 ## Features
 
 ### Chat Panel

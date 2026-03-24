@@ -2,7 +2,7 @@
   "name": "openclaw-extension",
   "displayName": "OpenClaw Extension",
   "description": "Status bar connector for the OpenClaw CLI",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "openknot",
   "author": {
     "name": "Val Alexander",

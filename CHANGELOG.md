@@ -6,6 +6,8 @@ Semantic Versioning.
 
 ## Unreleased
 
+## 0.2.1
+
 ### Added
 
 - Add `opencode` to the default model picker options.
@@ -27,6 +29,10 @@ Semantic Versioning.
 ### Removed
 
 - Remove the always-visible recommendation chip row in favor of the collapsible suggestions list.
+
+### Docs
+
+- Replace README screenshot placeholders with real chat screenshots for single-chat, slash-command, and multi-thread workflows.
 
 ## 0.2.0
 

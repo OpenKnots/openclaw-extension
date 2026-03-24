@@ -165,6 +165,13 @@ describe('pane collapse', () => {
         expect(html).toContain('formatContextGauge(getThreadSpaceUsage(thread), thread.contextMax || 128000)');
     });
 
+    it('renders collapsed threads after expanded ones', () => {
+        const html = renderHTML();
+        expect(html).toContain('function getOrderedThreads()');
+        expect(html).toContain('return expandedThreads.concat(collapsedThreads);');
+        expect(html).toContain('var orderedThreads = getOrderedThreads();');
+    });
+
     it('hides the close action when only one thread is visible', () => {
         const html = renderHTML();
         expect(html).toContain('(state.threads.length > 1');

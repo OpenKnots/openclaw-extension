@@ -1783,6 +1783,25 @@ export function getWebviewContent(
                 return false;
             }
 
+            function getOrderedThreads() {
+                var threads = Array.isArray(state.threads) ? state.threads : [];
+                if (threads.length <= 1) {
+                    return threads;
+                }
+
+                var expandedThreads = [];
+                var collapsedThreads = [];
+                threads.forEach(function(thread) {
+                    if (shouldCollapseThread(thread)) {
+                        collapsedThreads.push(thread);
+                    } else {
+                        expandedThreads.push(thread);
+                    }
+                });
+
+                return expandedThreads.concat(collapsedThreads);
+            }
+
             function renderPane(thread) {
                 var pane = document.createElement('section');
                 var statusClass = (thread.status || 'idle').toLowerCase();
@@ -1929,14 +1948,15 @@ export function getWebviewContent(
                     console.warn('[OpenClaw] scroll save failed:', e);
                 }
 
+                var orderedThreads = getOrderedThreads();
                 paneGrid.innerHTML = '';
 
-                if (!state.threads || state.threads.length === 0) {
+                if (orderedThreads.length === 0) {
                     paneGrid.innerHTML = '<div class="pane-empty"><div class="empty-detail">No threads available.</div></div>';
                     return;
                 }
 
-                state.threads.forEach(function(thread) {
+                orderedThreads.forEach(function(thread) {
                     try {
                         paneGrid.appendChild(renderPane(thread));
                     } catch (e) {
@@ -1944,7 +1964,7 @@ export function getWebviewContent(
                     }
                 });
 
-                state.threads.forEach(function(thread) {
+                orderedThreads.forEach(function(thread) {
                     try {
                         if (userScrolledUp[thread.id] && savedScrolls[thread.id] != null) {
                             var paneEl = paneGrid.querySelector('.pane[data-thread-id="' + thread.id + '"] .pane-body');

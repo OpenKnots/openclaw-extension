@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { exec } from 'child_process';
-import { ChatService, ChatEvent } from './ChatService';
-import { getWebviewContent } from './getWebviewContent';
+import { TextDecoder } from 'util';
 import { markdownToHTML } from '@create-markdown/preview';
+import { ChatEvent, ChatService } from './ChatService';
+import { getWebviewContent } from './getWebviewContent';
 import {
     SLASH_COMMANDS,
     buildSlashPrompt,
@@ -14,8 +15,36 @@ import {
 
 const log = vscode.window.createOutputChannel('OpenClaw Chat', { log: true });
 
-type ChatMessage = { role: 'user' | 'assistant' | 'error'; content: string; html?: string };
+type ChatMessage =
+    | { role: 'user' | 'assistant' | 'error'; content: string; html?: string }
+    | { role: 'tool'; title: string; status: string };
+
 type Attachment = { name: string; path: string };
+
+type ChatThreadState = {
+    id: string;
+    index: number;
+    title: string;
+    messages: ChatMessage[];
+    pendingAssistantText: string;
+    pendingAttachments: Attachment[];
+    currentChatType: string;
+    currentModel: string;
+    isStreaming: boolean;
+    service: ChatService;
+};
+
+type ThreadSnapshot = {
+    id: string;
+    index: number;
+    title: string;
+    messages: Array<Record<string, unknown>>;
+    pendingAssistantText: string;
+    pendingAttachments: Attachment[];
+    currentChatType: string;
+    currentModel: string;
+    isStreaming: boolean;
+};
 
 export interface Recommendation {
     label: string;
@@ -28,22 +57,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private sidebarView: vscode.WebviewView | undefined;
     private popOutPanel: vscode.WebviewPanel | undefined;
-    private chatService: ChatService;
-    private messages: ChatMessage[] = [];
-    private pendingAssistantText = '';
-    private pendingAttachments: Attachment[] = [];
     private editorChangeDisposable: vscode.Disposable | undefined;
     private selectionChangeDisposable: vscode.Disposable | undefined;
     private diagnosticChangeDisposable: vscode.Disposable | undefined;
     private globalState: vscode.Memento;
-    private currentChatType = 'chat';
-    private currentModel: string;
+    private threadCounter = 0;
+    private readonly threads = new Map<string, ChatThreadState>();
+    private visibleThreadIds: string[] = [];
+    private activeThreadId = '';
 
     constructor(private readonly extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
-        this.chatService = new ChatService();
         this.globalState = context.globalState;
-        const config = vscode.workspace.getConfiguration('openclaw');
-        this.currentModel = config.get<string>('chat.agent', 'codex');
+        const initialThread = this.createThreadState();
+        this.threads.set(initialThread.id, initialThread);
+        this.visibleThreadIds = [initialThread.id];
+        this.activeThreadId = initialThread.id;
 
         this.editorChangeDisposable = vscode.window.onDidChangeActiveTextEditor(() => {
             this.pushRecommendations();
@@ -76,28 +104,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         );
 
         this.setupWebviewListeners(webviewView.webview);
+        this.bootstrapWebview();
 
         webviewView.onDidDispose(() => {
             this.sidebarView = undefined;
         });
-
-        setTimeout(() => {
-            this.postToAll({
-                type: 'slashCommands',
-                commands: SLASH_COMMANDS.map(c => ({
-                    name: c.name,
-                    description: c.description,
-                    icon: c.icon,
-                    placeholder: c.placeholder,
-                })),
-            });
-            this.pushRecommendations();
-            this.pushModelsAndConfig();
-
-            if (this.globalState.get<boolean>('openclaw.onboardingComplete')) {
-                this.postToAll({ type: 'onboardingDone' });
-            }
-        }, 100);
     }
 
     popOut(): void {
@@ -118,37 +129,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         );
 
         this.popOutPanel = panel;
-
-        panel.webview.html = getWebviewContent(
-            panel.webview,
-            this.extensionUri,
-            false
-        );
-
+        panel.webview.html = getWebviewContent(panel.webview, this.extensionUri, false);
         this.setupWebviewListeners(panel.webview);
-
-        panel.webview.postMessage({
-            type: 'state',
-            messages: this.messages.map(m => ({
-                role: m.role,
-                content: m.content,
-                html: m.html
-            }))
-        });
-
-        setTimeout(() => {
-            panel.webview.postMessage({
-                type: 'slashCommands',
-                commands: SLASH_COMMANDS.map(c => ({
-                    name: c.name,
-                    description: c.description,
-                    icon: c.icon,
-                    placeholder: c.placeholder,
-                })),
-            });
-            this.pushRecommendations();
-            this.pushModelsAndConfig();
-        }, 100);
+        this.bootstrapWebview();
 
         panel.onDidDispose(() => {
             this.popOutPanel = undefined;
@@ -156,16 +139,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     newSession(): void {
-        this.chatService.abort();
-        this.messages = [];
-        this.pendingAssistantText = '';
-        this.pendingAttachments = [];
-        this.postToAll({ type: 'state', messages: [] });
-        this.postToAll({ type: 'attachments', files: [] });
+        this.createThread({ inheritFromActive: true, activate: true, insertAfterActive: true });
+        this.emitState();
     }
 
     dispose(): void {
-        this.chatService.dispose();
+        for (const thread of this.threads.values()) {
+            thread.service.dispose();
+        }
         this.popOutPanel?.dispose();
         this.editorChangeDisposable?.dispose();
         this.selectionChangeDisposable?.dispose();
@@ -175,6 +156,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private setupWebviewListeners(webview: vscode.Webview): void {
         webview.onDidReceiveMessage(async (msg: {
             type: string;
+            threadId?: string;
             text?: string;
             index?: number;
             command?: string;
@@ -184,53 +166,88 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             chatType?: string;
             model?: string;
         }) => {
+            const thread = this.getThread(msg.threadId);
+
             switch (msg.type) {
                 case 'send':
-                    if (msg.text) {
-                        this.handleSend(msg.text);
+                    if (thread && msg.text) {
+                        await this.handleSend(thread, msg.text);
                     }
                     break;
                 case 'setChatType':
-                    if (msg.chatType) {
-                        this.currentChatType = msg.chatType;
+                    if (thread && msg.chatType) {
+                        thread.currentChatType = msg.chatType;
+                        this.emitState();
                     }
                     break;
                 case 'setModel':
-                    if (msg.model) {
-                        this.currentModel = msg.model;
-                        vscode.workspace.getConfiguration('openclaw').update(
-                            'chat.agent', msg.model, vscode.ConfigurationTarget.Global
+                    if (thread && msg.model) {
+                        thread.currentModel = msg.model;
+                        void vscode.workspace.getConfiguration('openclaw').update(
+                            'chat.agent',
+                            msg.model,
+                            vscode.ConfigurationTarget.Global
                         );
+                        this.emitState();
                     }
                     break;
                 case 'slashCommand':
-                    if (msg.command) {
-                        await this.handleSlashCommand(msg.command, msg.text ?? '');
+                    if (thread && msg.command) {
+                        await this.handleSlashCommand(thread, msg.command, msg.text ?? '');
                     }
                     break;
                 case 'requestRecommendations':
                     this.pushRecommendations();
                     break;
                 case 'cancel':
-                    this.chatService.abort();
+                    if (thread) {
+                        thread.service.abort();
+                        thread.isStreaming = false;
+                        this.emitState();
+                    }
                     break;
                 case 'newSession':
-                    this.newSession();
+                case 'splitThread':
+                    this.createThread({
+                        inheritFromActive: true,
+                        activate: true,
+                        insertAfterActive: true
+                    });
+                    this.emitState();
+                    break;
+                case 'clearThread':
+                    if (thread) {
+                        this.resetThread(thread);
+                        this.emitState();
+                    }
+                    break;
+                case 'focusThread':
+                    if (thread) {
+                        this.activeThreadId = thread.id;
+                        this.emitState();
+                    }
+                    break;
+                case 'closeThread':
+                    if (thread) {
+                        this.closeThread(thread.id);
+                    }
                     break;
                 case 'popOut':
                     this.popOut();
                     break;
                 case 'attach':
-                    await this.handleAttach();
+                    if (thread) {
+                        await this.handleAttach(thread);
+                    }
                     break;
                 case 'removeAttachment':
-                    if (typeof msg.index === 'number') {
-                        this.pendingAttachments.splice(msg.index, 1);
-                        this.postToAll({ type: 'attachments', files: this.pendingAttachments });
+                    if (thread && typeof msg.index === 'number') {
+                        thread.pendingAttachments.splice(msg.index, 1);
+                        this.emitState();
                     }
                     break;
                 case 'onboardingComplete':
-                    this.globalState.update('openclaw.onboardingComplete', true);
+                    void this.globalState.update('openclaw.onboardingComplete', true);
                     break;
                 case 'fileSearch':
                     if (typeof msg.query === 'string') {
@@ -238,30 +255,129 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 case 'attachFile':
-                    if (msg.filePath) {
-                        await this.addAttachments([msg.filePath]);
+                    if (thread && msg.filePath) {
+                        await this.addAttachments(thread, [msg.filePath]);
                     }
                     break;
                 case 'attachFiles':
-                    if (Array.isArray(msg.filePaths) && msg.filePaths.length > 0) {
-                        await this.addAttachments(msg.filePaths);
+                    if (thread && Array.isArray(msg.filePaths) && msg.filePaths.length > 0) {
+                        await this.addAttachments(thread, msg.filePaths);
                     }
                     break;
             }
         });
     }
 
-    private async addAttachments(filePaths: string[]): Promise<void> {
+    private createThread(options?: {
+        inheritFromActive?: boolean;
+        activate?: boolean;
+        insertAfterActive?: boolean;
+    }): ChatThreadState {
+        const thread = this.createThreadState(options?.inheritFromActive ? this.getActiveThread() : undefined);
+        this.threads.set(thread.id, thread);
+
+        if (options?.insertAfterActive && this.activeThreadId) {
+            const activeIndex = this.visibleThreadIds.indexOf(this.activeThreadId);
+            if (activeIndex >= 0) {
+                this.visibleThreadIds.splice(activeIndex + 1, 0, thread.id);
+            } else {
+                this.visibleThreadIds.push(thread.id);
+            }
+        } else {
+            this.visibleThreadIds.push(thread.id);
+        }
+
+        if (options?.activate !== false) {
+            this.activeThreadId = thread.id;
+        }
+
+        return thread;
+    }
+
+    private createThreadState(source?: ChatThreadState): ChatThreadState {
+        this.threadCounter += 1;
+        const config = vscode.workspace.getConfiguration('openclaw');
+        const baseModel = source?.currentModel ?? config.get<string>('chat.agent', 'codex');
+        const baseType = source?.currentChatType ?? 'chat';
+        const index = this.threadCounter;
+
+        return {
+            id: `thread-${index}`,
+            index,
+            title: `Thread ${index}`,
+            messages: [],
+            pendingAssistantText: '',
+            pendingAttachments: [],
+            currentChatType: baseType,
+            currentModel: baseModel,
+            isStreaming: false,
+            service: new ChatService()
+        };
+    }
+
+    private getThread(threadId?: string): ChatThreadState | undefined {
+        if (threadId && this.threads.has(threadId)) {
+            return this.threads.get(threadId);
+        }
+        return this.getActiveThread();
+    }
+
+    private getActiveThread(): ChatThreadState | undefined {
+        return this.threads.get(this.activeThreadId);
+    }
+
+    private resetThread(thread: ChatThreadState): void {
+        thread.service.abort();
+        thread.messages = [];
+        thread.pendingAssistantText = '';
+        thread.pendingAttachments = [];
+        thread.isStreaming = false;
+        thread.title = `Thread ${thread.index}`;
+    }
+
+    private closeThread(threadId: string): void {
+        if (this.threads.size === 1) {
+            const thread = this.threads.get(threadId);
+            if (thread) {
+                this.resetThread(thread);
+                this.activeThreadId = thread.id;
+                this.visibleThreadIds = [thread.id];
+                this.emitState();
+            }
+            return;
+        }
+
+        const thread = this.threads.get(threadId);
+        if (!thread) {
+            return;
+        }
+
+        thread.service.dispose();
+        this.threads.delete(threadId);
+        this.visibleThreadIds = this.visibleThreadIds.filter(id => id !== threadId);
+
+        if (this.visibleThreadIds.length === 0) {
+            const fallback = this.createThread({ activate: true });
+            this.visibleThreadIds = [fallback.id];
+            this.activeThreadId = fallback.id;
+        } else if (this.activeThreadId === threadId) {
+            this.activeThreadId = this.visibleThreadIds[Math.max(0, this.visibleThreadIds.length - 1)];
+        }
+
+        this.emitState();
+    }
+
+    private async addAttachments(thread: ChatThreadState, filePaths: string[]): Promise<void> {
         let changed = false;
 
         for (const filePath of filePaths) {
-            if (!filePath || this.pendingAttachments.some(a => a.path === filePath)) {
+            if (!filePath || thread.pendingAttachments.some(a => a.path === filePath)) {
                 continue;
             }
 
             try {
                 await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
-                this.pendingAttachments.push({
+                thread.pendingAttachments.push({
                     name: path.basename(filePath),
                     path: filePath
                 });
@@ -272,55 +388,39 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
 
         if (changed) {
-            this.postToAll({ type: 'attachments', files: this.pendingAttachments });
+            this.emitState();
         }
     }
 
-    private async handleSlashCommand(commandName: string, userText: string): Promise<void> {
+    private async handleSlashCommand(
+        thread: ChatThreadState,
+        commandName: string,
+        userText: string
+    ): Promise<void> {
         const cmd = findCommand(commandName);
         if (!cmd) {
-            this.handleSend(userText);
+            await this.handleSend(thread, userText);
             return;
         }
 
         const context = await this.gatherEditorContext(cmd.contextType);
         const augmented = buildSlashPrompt(commandName, userText, context);
-
         const displayText = `/${commandName}${userText.trim() ? ' ' + userText.trim() : ''}`;
-        this.messages.push({ role: 'user', content: displayText });
-        this.pendingAssistantText = '';
+        const attachments = [...thread.pendingAttachments];
 
-        const attachments = [...this.pendingAttachments];
-        this.pendingAttachments = [];
-        this.postToAll({ type: 'attachments', files: [] });
+        thread.messages.push({ role: 'user', content: displayText });
+        thread.pendingAssistantText = '';
+        thread.pendingAttachments = [];
+        thread.isStreaming = true;
+        this.maybeRenameThread(thread, displayText);
+        this.emitState();
 
         let fullPrompt = augmented;
         if (attachments.length > 0) {
-            const sections: string[] = [];
-            for (const att of attachments) {
-                try {
-                    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(att.path));
-                    const content = new TextDecoder().decode(bytes);
-                    sections.push(`<file path="${att.path}">\n${content}\n</file>`);
-                } catch {
-                    sections.push(`<file path="${att.path}">\n[Could not read file]\n</file>`);
-                }
-            }
-            fullPrompt = sections.join('\n\n') + '\n\n' + fullPrompt;
+            fullPrompt = `${await this.readAttachments(attachments)}\n\n${fullPrompt}`;
         }
 
-        const cwd = this.getWorkspaceCwd();
-        if (!cwd) {
-            const errMsg = 'No workspace folder open. Open a folder to use chat.';
-            this.postToAll({ type: 'error', message: errMsg });
-            this.messages.push({ role: 'error', content: errMsg });
-            this.postToAll({ type: 'done' });
-            return;
-        }
-
-        this.chatService.sendMessage(fullPrompt, cwd, this.currentModel, this.currentChatType, (event: ChatEvent) => {
-            this.handleChatEvent(event);
-        });
+        await this.sendPrompt(thread, fullPrompt);
     }
 
     private async gatherEditorContext(contextType: ContextType): Promise<EditorContext> {
@@ -400,18 +500,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         ]);
     }
 
-    private pushModelsAndConfig(): void {
-        this.postToAll({ type: 'models', models: this.getAvailableModels() });
-        this.postToAll({ type: 'config', chatType: this.currentChatType, model: this.currentModel });
-    }
-
     private pushRecommendations(): void {
-        if (this.messages.length > 0) {
-            return;
-        }
-
-        const recs = this.buildRecommendations();
-        this.postToAll({ type: 'recommendations', items: recs });
+        this.postToAll({
+            type: 'recommendations',
+            items: this.buildRecommendations()
+        });
     }
 
     private buildRecommendations(): Recommendation[] {
@@ -463,7 +556,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return recs;
     }
 
-    private async handleAttach(): Promise<void> {
+    private async handleAttach(thread: ChatThreadState): Promise<void> {
         const uris = await vscode.window.showOpenDialog({
             canSelectMany: true,
             openLabel: 'Attach',
@@ -472,80 +565,98 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (!uris || uris.length === 0) {
             return;
         }
-        for (const uri of uris) {
-            this.pendingAttachments.push({
-                name: path.basename(uri.fsPath),
-                path: uri.fsPath
-            });
-        }
-        this.postToAll({ type: 'attachments', files: this.pendingAttachments });
+        await this.addAttachments(thread, uris.map(uri => uri.fsPath));
     }
 
-    private async handleSend(text: string): Promise<void> {
-        const attachments = [...this.pendingAttachments];
-        this.pendingAttachments = [];
-        this.postToAll({ type: 'attachments', files: [] });
+    private async handleSend(thread: ChatThreadState, text: string): Promise<void> {
+        const attachments = [...thread.pendingAttachments];
+
+        thread.messages.push({ role: 'user', content: text });
+        thread.pendingAssistantText = '';
+        thread.pendingAttachments = [];
+        thread.isStreaming = true;
+        this.maybeRenameThread(thread, text);
+        this.emitState();
 
         let fullPrompt = text;
         if (attachments.length > 0) {
-            const sections: string[] = [];
-            for (const att of attachments) {
-                try {
-                    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(att.path));
-                    const content = new TextDecoder().decode(bytes);
-                    sections.push(`<file path="${att.path}">\n${content}\n</file>`);
-                } catch {
-                    sections.push(`<file path="${att.path}">\n[Could not read file]\n</file>`);
-                }
-            }
-            fullPrompt = sections.join('\n\n') + '\n\n' + text;
+            fullPrompt = `${await this.readAttachments(attachments)}\n\n${text}`;
         }
 
-        this.messages.push({ role: 'user', content: text });
-        this.pendingAssistantText = '';
+        await this.sendPrompt(thread, fullPrompt);
+    }
 
+    private async readAttachments(attachments: Attachment[]): Promise<string> {
+        const sections: string[] = [];
+
+        for (const att of attachments) {
+            try {
+                const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(att.path));
+                const content = new TextDecoder().decode(bytes);
+                sections.push(`<file path="${att.path}">\n${content}\n</file>`);
+            } catch {
+                sections.push(`<file path="${att.path}">\n[Could not read file]\n</file>`);
+            }
+        }
+
+        return sections.join('\n\n');
+    }
+
+    private async sendPrompt(thread: ChatThreadState, fullPrompt: string): Promise<void> {
         const cwd = this.getWorkspaceCwd();
         if (!cwd) {
             const errMsg = 'No workspace folder open. Open a folder to use chat.';
-            this.postToAll({ type: 'error', message: errMsg });
-            this.messages.push({ role: 'error', content: errMsg });
-            this.postToAll({ type: 'done' });
+            thread.messages.push({ role: 'error', content: errMsg });
+            thread.isStreaming = false;
+            this.emitState();
             return;
         }
 
-        this.chatService.sendMessage(fullPrompt, cwd, this.currentModel, this.currentChatType, (event: ChatEvent) => {
-            this.handleChatEvent(event);
-        });
+        thread.service.sendMessage(
+            fullPrompt,
+            cwd,
+            thread.currentModel,
+            thread.currentChatType,
+            (event: ChatEvent) => {
+                void this.handleChatEvent(thread.id, event);
+            }
+        );
     }
 
-    private handleChatEvent(event: ChatEvent): void {
+    private async handleChatEvent(threadId: string, event: ChatEvent): Promise<void> {
+        const thread = this.threads.get(threadId);
+        if (!thread) {
+            return;
+        }
+
         switch (event.type) {
             case 'text':
-                this.pendingAssistantText += event.text;
-                this.postToAll({ type: 'streamChunk', text: event.text });
+                thread.pendingAssistantText += event.text;
+                thread.isStreaming = true;
+                this.emitState();
                 break;
             case 'toolCall':
-                this.postToAll({
-                    type: 'toolCall',
+                thread.messages.push({
+                    role: 'tool',
                     title: event.title,
                     status: event.status
                 });
+                this.emitState();
                 break;
             case 'done':
-                if (this.pendingAssistantText) {
-                    const raw = this.pendingAssistantText;
-                    this.pendingAssistantText = '';
-                    this.renderMarkdown(raw).then(html => {
-                        this.messages.push({ role: 'assistant', content: raw, html });
-                        this.postToAll({ type: 'done', html });
-                    });
-                } else {
-                    this.postToAll({ type: 'done' });
+                if (thread.pendingAssistantText) {
+                    const raw = thread.pendingAssistantText;
+                    thread.pendingAssistantText = '';
+                    const html = await this.renderMarkdown(raw);
+                    thread.messages.push({ role: 'assistant', content: raw, html });
                 }
+                thread.isStreaming = false;
+                this.emitState();
                 break;
             case 'error':
-                this.messages.push({ role: 'error', content: event.message });
-                this.postToAll({ type: 'error', message: event.message });
+                thread.messages.push({ role: 'error', content: event.message });
+                thread.isStreaming = false;
+                this.emitState();
                 break;
         }
     }
@@ -584,7 +695,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         }
                     }
                 }
-            } catch { /* tabGroups API unavailable */ }
+            } catch {
+                // tabGroups API unavailable
+            }
 
             if (openFiles.length > 0) {
                 webview.postMessage({ type: 'fileSearchResults', files: openFiles.slice(0, 15) });
@@ -597,7 +710,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const pattern = escaped ? `**/*${escaped}*` : '**/*';
 
         const uris = await vscode.workspace.findFiles(pattern, exclude, 30);
-
         const files = uris.map(uri => ({
             name: path.basename(uri.fsPath),
             path: uri.fsPath,
@@ -605,12 +717,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }));
 
         if (query) {
-            const lq = query.toLowerCase();
+            const lowerQuery = query.toLowerCase();
             files.sort((a, b) => {
-                const aStarts = a.name.toLowerCase().startsWith(lq);
-                const bStarts = b.name.toLowerCase().startsWith(lq);
-                if (aStarts && !bStarts) { return -1; }
-                if (!aStarts && bStarts) { return 1; }
+                const aStarts = a.name.toLowerCase().startsWith(lowerQuery);
+                const bStarts = b.name.toLowerCase().startsWith(lowerQuery);
+                if (aStarts && !bStarts) {
+                    return -1;
+                }
+                if (!aStarts && bStarts) {
+                    return 1;
+                }
                 return a.relativePath.length - b.relativePath.length;
             });
         }
@@ -620,6 +736,67 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private escapeGlob(str: string): string {
         return str.replace(/[[\]{}()*?!\\]/g, '\\$&');
+    }
+
+    private maybeRenameThread(thread: ChatThreadState, rawText: string): void {
+        const trimmed = rawText.replace(/^\/[a-zA-Z]+\s*/, '').replace(/\s+/g, ' ').trim();
+        if (!trimmed) {
+            return;
+        }
+
+        const baseTitle = `Thread ${thread.index}`;
+        if (thread.title !== baseTitle && thread.messages.length > 1) {
+            return;
+        }
+
+        thread.title = trimmed.length > 42 ? `${trimmed.slice(0, 39)}...` : trimmed;
+    }
+
+    private emitState(): void {
+        this.postToAll({
+            type: 'state',
+            activeThreadId: this.activeThreadId,
+            visibleThreadIds: this.visibleThreadIds,
+            models: this.getAvailableModels(),
+            threads: this.getThreadSnapshots()
+        });
+    }
+
+    private getThreadSnapshots(): ThreadSnapshot[] {
+        return this.visibleThreadIds
+            .map(id => this.threads.get(id))
+            .filter((thread): thread is ChatThreadState => Boolean(thread))
+            .map(thread => ({
+                id: thread.id,
+                index: thread.index,
+                title: thread.title,
+                messages: thread.messages.map(message => ({ ...message })),
+                pendingAssistantText: thread.pendingAssistantText,
+                pendingAttachments: [...thread.pendingAttachments],
+                currentChatType: thread.currentChatType,
+                currentModel: thread.currentModel,
+                isStreaming: thread.isStreaming
+            }));
+    }
+
+    private bootstrapWebview(): void {
+        setTimeout(() => {
+            this.postToAll({
+                type: 'slashCommands',
+                commands: SLASH_COMMANDS.map(c => ({
+                    name: c.name,
+                    description: c.description,
+                    icon: c.icon,
+                    placeholder: c.placeholder,
+                })),
+            });
+            this.pushRecommendations();
+            this.emitState();
+
+            if (this.globalState.get<boolean>('openclaw.onboardingComplete')) {
+                this.postToAll({ type: 'onboardingDone' });
+            }
+        }, 100);
     }
 
     private postToAll(message: Record<string, unknown>): void {

@@ -28,6 +28,17 @@ export const window = {
     })),
     createTreeView: vi.fn(() => createDisposable()),
     registerWebviewViewProvider: vi.fn(() => createDisposable()),
+    createWebviewPanel: vi.fn(() => ({
+        reveal: vi.fn(),
+        onDidDispose: vi.fn(() => createDisposable()),
+        dispose: vi.fn(),
+        webview: {
+            html: '',
+            options: {},
+            postMessage: vi.fn(),
+            onDidReceiveMessage: vi.fn(() => createDisposable()),
+        },
+    })),
     onDidCloseTerminal: vi.fn(() => createDisposable()),
     onDidChangeActiveTextEditor: vi.fn(() => createDisposable()),
     onDidChangeTextEditorSelection: vi.fn(() => createDisposable()),
@@ -36,6 +47,7 @@ export const window = {
     showWarningMessage: vi.fn(),
     showQuickPick: vi.fn(),
     showInputBox: vi.fn(),
+    showOpenDialog: vi.fn(),
     createTerminal: vi.fn(() => ({
         show: vi.fn(),
         sendText: vi.fn(),

@@ -107,7 +107,11 @@
         },
         "openclaw.hardening.mode": {
           "type": "string",
-          "enum": ["full", "audit", "auditFix"],
+          "enum": [
+            "full",
+            "audit",
+            "auditFix"
+          ],
           "default": "full",
           "description": "Hardening workflow to run: audit only, audit + fix, or full (audit, fix, deep)"
         },
@@ -123,9 +127,28 @@
         },
         "openclaw.chat.permissions": {
           "type": "string",
-          "enum": ["approve-reads", "approve-all", "deny-all"],
+          "enum": [
+            "approve-reads",
+            "approve-all",
+            "deny-all"
+          ],
           "default": "approve-reads",
           "description": "Permission mode for chat agent: approve-reads (default), approve-all, or deny-all"
+        },
+        "openclaw.chat.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "codex",
+            "gemini",
+            "opencode",
+            "claude",
+            "gpt-4o",
+            "ollama"
+          ],
+          "description": "Available models shown in the chat model picker"
         }
       }
     }
@@ -136,17 +159,21 @@
     "watch": "tsc -watch -p ./",
     "pretest": "pnpm run compile && pnpm run lint",
     "lint": "eslint src --ext ts",
-    "installLocal": "cursor --install-extension ./out/openclaw-extension.vsix",
+    "installLocal": "scripts/install-local.sh",
     "publish:vsce": "vsce publish",
     "publish:ovsx": "ovsx publish -p $OVSX_TOKEN",
     "publish:all": "scripts/publish-all.sh"
   },
   "devDependencies": {
+    "@types/node": "^22.19.15",
     "@types/vscode": "~1.105.0",
-    "@types/node": "^22.19.7",
-    "@typescript-eslint/eslint-plugin": "^8.54.0",
-    "@typescript-eslint/parser": "^8.54.0",
-    "eslint": "^9.39.2",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
+    "eslint": "^9.39.4",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@create-markdown/core": "^2.0.0",
+    "@create-markdown/preview": "^2.0.0"
   }
 }

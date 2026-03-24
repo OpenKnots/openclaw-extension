@@ -1,98 +1,79 @@
-# OpenClaw Extension Summary (Super Simple)
+# OpenClaw Extension — Quick Summary
 
-This extension adds a single "OpenClaw" status bar button in VS Code.
-Click it to run your OpenClaw CLI command in a terminal.
+A VS Code sidebar companion for OpenClaw that lets you chat with your codebase, run security hardening, manage tools, and connect to the gateway.
 
 ## What It Does
 
-- Shows connection state in the status bar (idle, connecting, connected, error)
-- Runs your configured OpenClaw CLI command in a dedicated terminal
-- Can auto-connect on startup
-- Helps install Node.js / OpenClaw if missing
-- Guides migration from legacy CLI names
+- **Chat** — talk to an AI agent about your code, scoped to your workspace. Each message runs an ephemeral `acpx exec` session.
+- **Slash commands** — `/explain`, `/fix`, `/review`, `/test`, `/refactor`, `/doc`, `/commit`, `/harden`, `/search`. Each injects the right editor context automatically.
+- **`@`-mention files** — type `@` in the input to search and attach workspace files.
+- **Recommendation chips** — context-aware suggestions that appear before the first message, updating as you change editors and selections.
+- **Status bar** — shows connection state (idle / connecting / connected / error). Click to run your OpenClaw CLI command.
+- **Overview panel** — tree view with Getting Started, Operate, Hardening, Tools, and Help sections.
+- **Security hardening** — run `openclaw security audit`, `--fix`, and `--deep` in sequence, plus a plain-English access summary.
+- **Tool management** — list, enable/disable, and uninstall tools read from `~/.openclaw/openclaw.json`.
+- **Model Setup Wizard** — run onboarding, pick a provider, open config/auth files.
+- **Guided install** — detects missing Node.js or OpenClaw CLI and offers install actions.
+- **Legacy migration** — prompts to upgrade from `molt` / `clawdbot` to `openclaw`.
 
-## How To Use (The Simplest Path)
+## The Simplest Path
 
-1. Install OpenClaw CLI:
-   - `npm install -g openclaw@latest`
-2. Start the gateway:
-   - `openclaw gateway --port 18789`
-3. Click the `OpenClaw` status bar item in VS Code.
-4. The extension sends your command (default: `openclaw status`).
+1. Install the CLI: `npm install -g openclaw@latest`
+2. Install acpx: `npm install -g acpx`
+3. Onboard: `openclaw onboard --install-daemon`
+4. Open the OpenClaw sidebar and start chatting, or click the status bar item to connect.
 
-That's it. If the command is missing, the extension offers install actions.
+## Commands
 
-## Commands You Use in VS Code
+- **OpenClaw: Connect** — run your CLI command in a terminal
+- **OpenClaw: Setup** — guided install for Node.js and OpenClaw
+- **OpenClaw: Model Setup Wizard** — onboarding + provider selection
+- **OpenClaw: Harden** — security hardening workflow
+- **OpenClaw: Open Chat** — focus the sidebar chat
+- **OpenClaw: Pop Out Chat** — move chat into an editor panel
+- **OpenClaw: New Chat Session** — clear conversation
 
-- `OpenClaw: Connect` (runs your command)
-- `OpenClaw: Setup` (guided install for Node.js and OpenClaw)
+## Key Settings
 
-## Settings (Optional)
+| Setting | Default | What it controls |
+|---------|---------|-----------------|
+| `openclaw.command` | `openclaw status` | CLI command the status bar runs |
+| `openclaw.autoConnect` | `false` | Auto-run on startup |
+| `openclaw.chat.agent` | `codex` | Agent used for chat (`codex`, `gemini`, `opencode`, etc.) |
+| `openclaw.chat.permissions` | `approve-reads` | Permission mode for the chat agent |
+| `openclaw.hardening.mode` | `full` | Hardening scope: `full`, `audit`, or `auditFix` |
 
-- `openclaw.command`
-  - Default: `openclaw status`
-  - Example for WSL on Windows: `wsl openclaw status`
-- `openclaw.autoConnect`
-  - `true` to auto-run on startup
+For WSL: set `openclaw.command` to `wsl openclaw status`.
 
 ## Status Bar States
 
-- `$(plug) OpenClaw` = idle (click to connect)
-- `$(sync~spin) OpenClaw` = connecting
-- `$(check) OpenClaw` = connected (command sent)
-- `$(alert) OpenClaw` = error (click to retry)
+| Icon | Meaning |
+|------|---------|
+| `$(plug) OpenClaw` | Idle — click to connect |
+| `$(sync~spin) OpenClaw` | Connecting |
+| `$(check) OpenClaw` | Connected (command sent) |
+| `$(alert) OpenClaw` | Error — click to retry |
 
-## Simple Flow Diagram
-
-```mermaid
-flowchart TD
-    A[VS Code starts] --> B{autoConnect?}
-    B -->|yes| C[Run OpenClaw command]
-    B -->|no| D[Show status bar button]
-    D --> E[User clicks OpenClaw]
-    E --> C
-    C --> F{Command exists?}
-    F -->|yes| G[Send command to terminal]
-    F -->|no| H[Offer install / docs / settings]
-```
-
-## Setup Helper Flow (Missing CLI / Node)
+## Architecture
 
 ```mermaid
 flowchart TD
-    A[User clicks OpenClaw] --> B{openclaw found?}
-    B -->|no| C{legacy CLI found?}
-    C -->|yes| D[Show migration actions]
-    C -->|no| E[Offer install actions]
-    E --> F{Node.js needed?}
-    F -->|yes| G[Offer Node.js install options]
-    F -->|no| H[Run install command in terminal]
-```
+    A[Extension activates] --> B[Register status bar + commands]
+    B --> C[Create ChatViewProvider webview]
+    B --> D[Create OverviewTreeProvider]
+    B --> E{autoConnect?}
+    E -->|yes| F[Run CLI command in terminal]
+    E -->|no| G[Wait for user click]
 
-## What You See When It Works
-
-```mermaid
-sequenceDiagram
-    participant U as You
-    participant VS as VS Code
-    participant T as Terminal
-
-    U->>VS: Click "OpenClaw" status bar
-    VS->>VS: Set status = connecting
-    VS->>T: Send CLI command
-    VS->>VS: Set status = connected
+    C --> H[User sends message or slash command]
+    H --> I[Gather editor context]
+    I --> J[Spawn acpx exec with NDJSON streaming]
+    J --> K[Stream response + tool badges to webview]
 ```
 
 ## Troubleshooting (Short Version)
 
-- "command not found: openclaw"
-  - Run `OpenClaw: Setup` or reinstall:
-  - `npm install -g openclaw@latest`
-- "node: command not found"
-  - Install latest Node.js LTS from https://nodejs.org/
-- Want different CLI command?
-  - Update `openclaw.command` in Settings
-
-## ELI5
-
-Click the status bar button and the extension runs your OpenClaw CLI command for you.
+- **"command not found: openclaw"** — run `OpenClaw: Setup` or `npm install -g openclaw@latest`
+- **"acpx not found"** — `npm install -g acpx`
+- **"node: command not found"** — install from [nodejs.org](https://nodejs.org/)
+- **Gateway not running** — `openclaw gateway restart`

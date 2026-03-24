@@ -10,18 +10,28 @@ export type ChatEvent =
 export class ChatService {
     private activeProcess: ChildProcess | null = null;
 
+    private static readonly CHAT_TYPE_PREFIXES: Record<string, string> = {
+        code: 'You are a coding assistant. Focus on writing and explaining code.\n\n',
+        review: 'You are a code reviewer. Analyze the provided code for bugs, improvements, and best practices.\n\n',
+        plan: 'You are a planning assistant. Create structured plans and break down tasks. Do not write code unless asked.\n\n',
+    };
+
     sendMessage(
         prompt: string,
         cwd: string,
+        model: string,
+        chatType: string,
         onEvent: (event: ChatEvent) => void
     ): void {
         this.abort();
 
         const config = vscode.workspace.getConfiguration('openclaw');
-        const agent = config.get<string>('chat.agent', 'codex');
         const permissions = config.get<string>('chat.permissions', 'approve-reads');
 
-        const args = this.buildArgs(agent, permissions, prompt);
+        const prefix = ChatService.CHAT_TYPE_PREFIXES[chatType] ?? '';
+        const fullPrompt = prefix + prompt;
+
+        const args = this.buildArgs(model, permissions, fullPrompt);
 
         const child = spawn('acpx', args, {
             cwd,
@@ -103,18 +113,18 @@ export class ChatService {
     private buildArgs(agent: string, permissions: string, prompt: string): string[] {
         const args: string[] = [];
 
-        if (agent && agent !== 'codex') {
-            args.push(agent);
-        }
-
-        args.push('exec', '--format', 'json');
+        args.push('--format', 'json');
 
         const permFlag = this.permissionFlag(permissions);
         if (permFlag) {
             args.push(permFlag);
         }
 
-        args.push(prompt);
+        if (agent && agent !== 'codex') {
+            args.push(agent);
+        }
+
+        args.push('exec', prompt);
         return args;
     }
 

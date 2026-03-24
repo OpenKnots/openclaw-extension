@@ -179,7 +179,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(overviewView);
     void overviewProvider.refreshTools();
 
-    chatViewProvider = new ChatViewProvider(context.extensionUri);
+    chatViewProvider = new ChatViewProvider(context.extensionUri, context);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );

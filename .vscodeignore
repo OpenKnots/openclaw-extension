@@ -10,5 +10,14 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
-node_modules/
+node_modules/.package-lock.json
+node_modules/.modules.yaml
+node_modules/.pnpm/
 TESTING.md
+SUMMARY.md
+*.vsix
+bun.lock
+pnpm-lock.yaml
+scripts/**
+assets/images/readme-hero.png
+assets/images/readme-hero.svg

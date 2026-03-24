@@ -6,6 +6,18 @@ Semantic Versioning.
 
 ## Unreleased
 
+- Add slash commands (`/explain`, `/fix`, `/review`, `/test`, `/refactor`, `/doc`, `/commit`, `/harden`, `/search`) with autocomplete dropdown and keyboard navigation.
+- Inject editor context automatically per command: active selection, file content, diagnostics, git diff, or staged changes.
+- Replace the static onboarding card with context-aware recommendation chips that update as the active editor, selection, and diagnostics change.
+- Build augmented prompts on the extension side so `acpx` receives rich, instruction-wrapped requests without backend changes.
+- Add a multi-step onboarding carousel with three slides: "Chat with your codebase", "Security-first hardening", and key setup tips. Includes smooth transitions, dot indicators, and Back/Next navigation.
+- Persist onboarding completion in `globalState` so the carousel only shows on first use.
+- Add Cursor-style `@`-mention file attachment: type `@` in the chat input to search and attach workspace files as context, with autocomplete dropdown, keyboard navigation, and mouse support.
+- Add in-chat dropdown selectors for chat type (Chat, Code, Review, Plan) and model/agent, replacing settings-only configuration with direct UI controls in the input area.
+- Add `openclaw.chat.models` setting to customize the list of available models shown in the model picker.
+- Prepend chat-type-specific system instructions (code, review, plan) to prompts so `acpx` receives role-appropriate context.
+- Thanks @BunsDev <3
+
 ## 0.1.0
 
 - Add a Chat panel in the OpenClaw sidebar for ephemeral gateway subagent conversations.

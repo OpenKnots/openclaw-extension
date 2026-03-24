@@ -190,11 +190,38 @@ export function getWebviewContent(
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            transition: border-color 0.15s;
+            position: relative;
+            transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
         }
 
         .input-card:focus-within {
             border-color: var(--vscode-focusBorder, #007acc);
+        }
+
+        .input-card.drag-active {
+            border-color: var(--vscode-focusBorder, #007acc);
+            background: color-mix(in srgb, var(--vscode-input-background) 88%, var(--vscode-focusBorder, #007acc));
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder, #007acc) 65%, transparent);
+        }
+
+        .drop-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: color-mix(in srgb, var(--vscode-editor-background, rgba(0,0,0,0.2)) 74%, transparent);
+            color: var(--vscode-foreground);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .drop-overlay.visible {
+            display: flex;
         }
 
         .input-card textarea {
@@ -925,7 +952,8 @@ export function getWebviewContent(
             <div class="slash-dropdown" id="slashDropdown"></div>
             <div class="selector-dropdown" id="chatTypeDropdown"></div>
             <div class="selector-dropdown" id="modelDropdown"></div>
-            <div class="input-card">
+            <div class="input-card" id="inputCard">
+                <div class="drop-overlay" id="dropOverlay">Drop files to attach</div>
                 <textarea id="input"
                           rows="1"
                           placeholder="Ask anything\u2026  / commands  @ files"
@@ -1051,11 +1079,14 @@ export function getWebviewContent(
             var body = document.body;
             var mainEl = document.getElementById('main');
             var messagesEl = document.getElementById('messages');
+            var inputWrapper = document.getElementById('inputWrapper');
+            var inputCard = document.getElementById('inputCard');
             var inputEl = document.getElementById('input');
             var btnSend = document.getElementById('btn-send');
             var btnNew = document.getElementById('btn-new');
             var btnPopout = document.getElementById('btn-popout');
             var btnAttach = document.getElementById('btn-attach');
+            var dropOverlay = document.getElementById('dropOverlay');
             var streamingEl = document.getElementById('streaming');
             var slashDropdown = document.getElementById('slashDropdown');
             var slashHint = document.getElementById('slashHint');
@@ -1100,6 +1131,7 @@ export function getWebviewContent(
             var atMentionStart = -1;
             var activeFileIndex = 0;
             var fileSearchDebounce = null;
+            var dragDepth = 0;
 
             function setHasMessages(val) {
                 hasMessages = val;
@@ -1415,6 +1447,49 @@ export function getWebviewContent(
                     pill.appendChild(rm);
                     attachmentsEl.appendChild(pill);
                 });
+            }
+
+            function hasFileDrag(dataTransfer) {
+                if (!dataTransfer) return false;
+                var types = dataTransfer.types;
+                if (!types) return false;
+                if (typeof types.indexOf === 'function') {
+                    return types.indexOf('Files') !== -1;
+                }
+                return Array.prototype.indexOf.call(types, 'Files') !== -1;
+            }
+
+            function setDragActive(active) {
+                if (!inputCard || !dropOverlay) return;
+                inputCard.classList.toggle('drag-active', active);
+                dropOverlay.classList.toggle('visible', active);
+            }
+
+            function extractDroppedPaths(dataTransfer) {
+                var paths = [];
+                if (!dataTransfer) return paths;
+
+                var pushPath = function(file) {
+                    if (file && file.path && paths.indexOf(file.path) === -1) {
+                        paths.push(file.path);
+                    }
+                };
+
+                if (dataTransfer.items) {
+                    for (var i = 0; i < dataTransfer.items.length; i++) {
+                        var item = dataTransfer.items[i];
+                        if (item.kind !== 'file') continue;
+                        pushPath(item.getAsFile());
+                    }
+                }
+
+                if (paths.length === 0 && dataTransfer.files) {
+                    for (var j = 0; j < dataTransfer.files.length; j++) {
+                        pushPath(dataTransfer.files[j]);
+                    }
+                }
+
+                return paths;
             }
 
             /* ---------- Chat type & model dropdowns ---------- */
@@ -1742,6 +1817,48 @@ export function getWebviewContent(
                     vscode.postMessage({ type: 'attach' });
                 });
             }
+
+            if (inputWrapper) {
+                inputWrapper.addEventListener('dragenter', function(e) {
+                    if (!hasFileDrag(e.dataTransfer)) return;
+                    dragDepth += 1;
+                    e.preventDefault();
+                    setDragActive(true);
+                });
+
+                inputWrapper.addEventListener('dragover', function(e) {
+                    if (!hasFileDrag(e.dataTransfer)) return;
+                    e.preventDefault();
+                    if (e.dataTransfer) {
+                        e.dataTransfer.dropEffect = 'copy';
+                    }
+                    setDragActive(true);
+                });
+
+                inputWrapper.addEventListener('dragleave', function(e) {
+                    if (!hasFileDrag(e.dataTransfer)) return;
+                    dragDepth = Math.max(0, dragDepth - 1);
+                    if (dragDepth === 0 && !inputWrapper.contains(e.relatedTarget)) {
+                        setDragActive(false);
+                    }
+                });
+
+                inputWrapper.addEventListener('drop', function(e) {
+                    if (!hasFileDrag(e.dataTransfer)) return;
+                    e.preventDefault();
+                    dragDepth = 0;
+                    setDragActive(false);
+                    var filePaths = extractDroppedPaths(e.dataTransfer);
+                    if (filePaths.length > 0) {
+                        vscode.postMessage({ type: 'attachFiles', filePaths: filePaths });
+                    }
+                });
+            }
+
+            window.addEventListener('dragend', function() {
+                dragDepth = 0;
+                setDragActive(false);
+            });
 
             inputEl.addEventListener('click', checkAtMention);
 

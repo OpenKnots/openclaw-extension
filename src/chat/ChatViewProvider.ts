@@ -180,6 +180,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             command?: string;
             query?: string;
             filePath?: string;
+            filePaths?: string[];
             chatType?: string;
             model?: string;
         }) => {
@@ -237,16 +238,42 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 case 'attachFile':
-                    if (msg.filePath && !this.pendingAttachments.some(a => a.path === msg.filePath)) {
-                        this.pendingAttachments.push({
-                            name: path.basename(msg.filePath),
-                            path: msg.filePath
-                        });
-                        this.postToAll({ type: 'attachments', files: this.pendingAttachments });
+                    if (msg.filePath) {
+                        await this.addAttachments([msg.filePath]);
+                    }
+                    break;
+                case 'attachFiles':
+                    if (Array.isArray(msg.filePaths) && msg.filePaths.length > 0) {
+                        await this.addAttachments(msg.filePaths);
                     }
                     break;
             }
         });
+    }
+
+    private async addAttachments(filePaths: string[]): Promise<void> {
+        let changed = false;
+
+        for (const filePath of filePaths) {
+            if (!filePath || this.pendingAttachments.some(a => a.path === filePath)) {
+                continue;
+            }
+
+            try {
+                await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
+                this.pendingAttachments.push({
+                    name: path.basename(filePath),
+                    path: filePath
+                });
+                changed = true;
+            } catch {
+                // Ignore invalid or unreadable dropped paths.
+            }
+        }
+
+        if (changed) {
+            this.postToAll({ type: 'attachments', files: this.pendingAttachments });
+        }
     }
 
     private async handleSlashCommand(commandName: string, userText: string): Promise<void> {

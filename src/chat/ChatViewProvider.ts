@@ -898,9 +898,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private async handleFileSearch(query: string, webview: vscode.Webview): Promise<void> {
         const cwd = this.getWorkspaceCwd() || '';
+        const limit = 15;
+        type FileSearchResult = {name: string; path: string; relativePath: string};
 
         if (!query) {
-            const openFiles: Array<{name: string; path: string; relativePath: string}> = [];
+            const openFiles: FileSearchResult[] = [];
             try {
                 for (const group of vscode.window.tabGroups.all) {
                     for (const tab of group.tabs) {
@@ -919,38 +921,70 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
 
             if (openFiles.length > 0) {
-                webview.postMessage({ type: 'fileSearchResults', files: openFiles.slice(0, 15) });
+                webview.postMessage({ type: 'fileSearchResults', files: openFiles.slice(0, limit) });
                 return;
             }
         }
 
         const exclude = '{**/node_modules/**,**/.git/**,**/dist/**,**/out/**}';
-        const escaped = query ? this.escapeGlob(query) : '';
+        const lowerQuery = query.trim().toLowerCase();
+        const escaped = lowerQuery ? this.escapeGlob(query) : '';
         const pattern = escaped ? `**/*${escaped}*` : '**/*';
-
-        const uris = await vscode.workspace.findFiles(pattern, exclude, 30);
-        const files = uris.map(uri => ({
+        const toFileResult = (uri: vscode.Uri): FileSearchResult => ({
             name: path.basename(uri.fsPath),
             path: uri.fsPath,
             relativePath: cwd ? path.relative(cwd, uri.fsPath) : uri.fsPath
-        }));
+        });
+        const matchesQuery = (file: FileSearchResult): boolean => (
+            !lowerQuery ||
+            file.name.toLowerCase().includes(lowerQuery) ||
+            file.relativePath.toLowerCase().includes(lowerQuery)
+        );
+        const scoreFile = (file: FileSearchResult): number => {
+            if (!lowerQuery) {
+                return file.relativePath.length;
+            }
+            const lowerName = file.name.toLowerCase();
+            const lowerPath = file.relativePath.toLowerCase();
+            if (lowerName.startsWith(lowerQuery)) {
+                return 0;
+            }
+            if (lowerName.includes(lowerQuery)) {
+                return 1;
+            }
+            if (lowerPath.startsWith(lowerQuery)) {
+                return 2;
+            }
+            return 3;
+        };
+        const sortFiles = (files: FileSearchResult[]): FileSearchResult[] => files.sort((a, b) => {
+            const scoreDiff = scoreFile(a) - scoreFile(b);
+            if (scoreDiff !== 0) {
+                return scoreDiff;
+            }
+            return a.relativePath.length - b.relativePath.length;
+        });
+        const appendUniqueFiles = (target: FileSearchResult[], files: FileSearchResult[]): void => {
+            const seen = new Set(target.map(file => file.path));
+            for (const file of files) {
+                if (seen.has(file.path)) {
+                    continue;
+                }
+                seen.add(file.path);
+                target.push(file);
+            }
+        };
 
-        if (query) {
-            const lowerQuery = query.toLowerCase();
-            files.sort((a, b) => {
-                const aStarts = a.name.toLowerCase().startsWith(lowerQuery);
-                const bStarts = b.name.toLowerCase().startsWith(lowerQuery);
-                if (aStarts && !bStarts) {
-                    return -1;
-                }
-                if (!aStarts && bStarts) {
-                    return 1;
-                }
-                return a.relativePath.length - b.relativePath.length;
-            });
+        const files: FileSearchResult[] = [];
+        const uris = await vscode.workspace.findFiles(pattern, exclude, 30);
+        appendUniqueFiles(files, uris.map(toFileResult).filter(matchesQuery));
+
+        if (lowerQuery && files.length < limit) {
+            const fallbackUris = await vscode.workspace.findFiles('**/*', exclude);
+            appendUniqueFiles(files, fallbackUris.map(toFileResult).filter(matchesQuery));
         }
 
-        webview.postMessage({ type: 'fileSearchResults', files: files.slice(0, 15) });
+        webview.postMessage({ type: 'fileSearchResults', files: sortFiles(files).slice(0, limit) });
     }
 
     private escapeGlob(str: string): string {

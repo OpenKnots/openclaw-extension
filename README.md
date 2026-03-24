@@ -8,23 +8,23 @@ A full-featured VS Code companion for [OpenClaw](https://docs.openclaw.ai) — c
 
 ## Screenshots
 
-### Chat Panel
+### Single Chat
 
-> Placeholder screenshot: add `assets/images/readme-chat-panel.png`
->
-> Show the OpenClaw sidebar chat with threaded panes, slash commands, `@` file mentions, attachments, and a streamed response.
+![Single chat thread](assets/images/single-chat.png)
 
-### Security Hardening
+The sidebar chat view supports file mentions, attachments, and streamed responses in a focused single-thread layout.
 
-> Placeholder screenshot: add `assets/images/readme-hardening.png`
->
-> Show the hardening flow or access summary from the sidebar or command palette.
+### Slash Commands
 
-### Model Setup Wizard
+![Slash command picker](assets/images/slash-commands.png)
 
-> Placeholder screenshot: add `assets/images/readme-model-setup.png`
->
-> Show provider selection plus the follow-up options for docs, config, and auth profiles.
+Type `/` in the composer to open command shortcuts like `/explain`, `/fix`, `/review`, `/test`, and more.
+
+### Multi-Thread Layout
+
+![Multi-thread chat view](assets/images/multi-thread.png)
+
+OpenClaw can split the chat into multiple panes so you can work on separate threads side by side.
 
 ## Features
 

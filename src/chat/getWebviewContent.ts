@@ -27,9 +27,14 @@ export function getWebviewContent(
         :root {
             --openclaw-brand-red: #F80615;
             --openclaw-brand-red-hover: #CF0511;
-            --openclaw-brand-red-soft: rgba(248, 6, 21, 0.12);
-            --openclaw-brand-red-strong: rgba(248, 6, 21, 0.22);
-            --openclaw-brand-red-border: rgba(248, 6, 21, 0.32);
+            --openclaw-brand-red-soft: rgba(248, 6, 21, 0.08);
+            --openclaw-brand-red-strong: rgba(248, 6, 21, 0.14);
+            --openclaw-brand-red-border: rgba(248, 6, 21, 0.18);
+            --openclaw-brand-red-active: rgba(248, 6, 21, 0.44);
+            --openclaw-surface-raised: rgba(255, 255, 255, 0.04);
+            --openclaw-surface-border: rgba(255, 255, 255, 0.08);
+            --openclaw-neutral-border: rgba(255, 255, 255, 0.10);
+            --openclaw-neutral-border-strong: rgba(255, 255, 255, 0.16);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,12 +65,21 @@ export function getWebviewContent(
         .header {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--openclaw-brand-red-border);
+            gap: 10px;
+            padding: 10px 12px 0;
+            background: transparent;
+        }
+
+        .header-brand {
+            min-width: 0;
+            flex: 1;
+            padding: 8px 11px;
+            border-radius: 12px;
+            border: 1px solid var(--openclaw-brand-red-border);
             background:
-                linear-gradient(135deg, rgba(248, 6, 21, 0.16), transparent 58%),
-                var(--vscode-sideBar-background, var(--vscode-editor-background));
+                linear-gradient(135deg, rgba(248, 6, 21, 0.12), rgba(248, 6, 21, 0.03) 62%, transparent),
+                var(--openclaw-surface-raised);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
         .header-title {
@@ -78,8 +92,9 @@ export function getWebviewContent(
         }
 
         .header-subtitle {
+            margin-top: 2px;
             font-size: 12px;
-            opacity: 0.55;
+            opacity: 0.6;
         }
 
         .header-actions {
@@ -92,9 +107,9 @@ export function getWebviewContent(
         .icon-btn {
             width: 28px;
             height: 28px;
-            border-radius: 8px;
-            border: 1px solid transparent;
-            background: transparent;
+            border-radius: 999px;
+            border: 1px solid var(--openclaw-surface-border);
+            background: var(--openclaw-surface-raised);
             cursor: pointer;
             opacity: 0.72;
             transition: opacity 0.15s, background 0.15s, border-color 0.15s;
@@ -103,7 +118,7 @@ export function getWebviewContent(
         .icon-btn:hover {
             opacity: 1;
             background: var(--openclaw-brand-red-soft);
-            border-color: var(--openclaw-brand-red-border);
+            border-color: var(--openclaw-surface-border);
         }
 
         .workspace {
@@ -115,7 +130,7 @@ export function getWebviewContent(
         .pane-grid {
             flex: 1;
             min-height: 0;
-            padding: 10px 12px 12px;
+            padding: 8px 12px 12px;
             display: grid;
             grid-template-columns: repeat(var(--grid-cols, 1), minmax(280px, 1fr));
             grid-template-rows: repeat(var(--grid-rows, 1), 1fr);
@@ -133,11 +148,22 @@ export function getWebviewContent(
                 linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
                 var(--vscode-editor-background);
             overflow: hidden;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .pane:hover {
+            border-color: rgba(255, 255, 255, 0.12);
         }
 
         .pane.active {
-            border-color: var(--openclaw-brand-red);
-            box-shadow: inset 0 0 0 1px var(--openclaw-brand-red-strong);
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        }
+
+        .pane.active:hover,
+        .pane.active:focus-within {
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
         }
 
         .pane.collapsed {
@@ -316,10 +342,10 @@ export function getWebviewContent(
         .pane-body {
             min-height: 0;
             overflow-y: auto;
-            padding: 8px 10px 10px;
+            padding: 4px 6px 6px;
             display: flex;
             flex-direction: column;
-            gap: 7px;
+            gap: 3px;
         }
 
         .pane-empty {
@@ -337,20 +363,55 @@ export function getWebviewContent(
         }
 
         .message {
-            line-height: 1.55;
+            line-height: 1.25;
             white-space: pre-wrap;
             word-break: break-word;
             font-size: 13px;
         }
 
         .message-user {
-            padding-left: 10px;
+            padding-left: 6px;
             border-left: 2px solid var(--openclaw-brand-red);
             opacity: 0.78;
         }
 
         .message-assistant {
             color: var(--vscode-foreground);
+        }
+
+        .message-assistant > :first-child {
+            margin-top: 0;
+        }
+
+        .message-assistant > :last-child {
+            margin-bottom: 0;
+        }
+
+        .message-assistant h1,
+        .message-assistant h2,
+        .message-assistant h3,
+        .message-assistant h4,
+        .message-assistant h5,
+        .message-assistant h6 {
+            margin: 0 0 2px;
+            line-height: 1.1;
+        }
+
+        .message-assistant p,
+        .message-assistant ul,
+        .message-assistant ol,
+        .message-assistant pre,
+        .message-assistant blockquote {
+            margin: 0 0 3px;
+        }
+
+        .message-assistant ul,
+        .message-assistant ol {
+            padding-left: 14px;
+        }
+
+        .message-assistant li + li {
+            margin-top: 0;
         }
 
         .file-link {
@@ -548,19 +609,19 @@ export function getWebviewContent(
             position: relative;
             margin: 10px;
             border-radius: 16px;
-            border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3));
+            border: none;
             background: var(--vscode-input-background);
             overflow: hidden;
-            transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+            transition: background 0.15s, box-shadow 0.15s;
         }
 
         .composer-card:focus-within {
-            border-color: var(--openclaw-brand-red);
+            box-shadow: none;
         }
 
         .composer-card.drag-active {
-            border-color: var(--openclaw-brand-red);
-            box-shadow: 0 0 0 1px var(--openclaw-brand-red-strong);
+            border-color: var(--openclaw-neutral-border-strong);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
         }
 
         .drop-overlay {
@@ -573,7 +634,7 @@ export function getWebviewContent(
             gap: 4px;
             background: var(--openclaw-brand-red-soft);
             backdrop-filter: blur(2px);
-            border: 2px dashed var(--openclaw-brand-red);
+            border: 2px dashed var(--openclaw-surface-border);
             border-radius: 14px;
             z-index: 2;
             pointer-events: none;
@@ -833,16 +894,23 @@ export function getWebviewContent(
         .btn-send {
             margin-left: auto;
             border-radius: 999px;
-            background: var(--openclaw-brand-red);
-            color: var(--vscode-button-foreground, #fff);
+            border: 1px solid var(--openclaw-surface-border);
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.84);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
         }
 
         .btn-send:hover {
-            background: var(--openclaw-brand-red-hover);
+            background: rgba(248, 6, 21, 0.14);
+            border-color: var(--openclaw-surface-border);
+            color: #fff;
         }
 
         .btn-send.streaming {
-            background: var(--vscode-errorForeground, #f48771);
+            border-color: var(--openclaw-surface-border);
+            background: rgba(248, 6, 21, 0.18);
+            color: #fff;
         }
 
         .queued-indicator {
@@ -1057,14 +1125,14 @@ export function getWebviewContent(
             overflow: auto;
             background: rgba(128, 128, 128, 0.14);
             border-radius: 8px;
-            padding: 10px;
-            margin: 4px 0;
+            padding: 6px;
+            margin: 2px 0;
         }
 
         code {
             font-family: var(--vscode-editor-font-family);
             background: rgba(128, 128, 128, 0.14);
-            padding: 1px 4px;
+            padding: 0 2px;
             border-radius: 4px;
         }
 
@@ -1074,24 +1142,24 @@ export function getWebviewContent(
         }
 
         .dimension-select {
-            height: 24px;
+            height: 28px;
             min-width: 56px;
-            padding: 0 6px;
+            padding: 0 10px;
             font-size: 11px;
-            border-radius: 6px;
-            border: 1px solid var(--openclaw-brand-red-border);
-            background: rgba(248, 6, 21, 0.08);
+            border-radius: 999px;
+            border: 1px solid var(--openclaw-surface-border);
+            background: var(--openclaw-surface-raised);
             color: inherit;
             cursor: pointer;
         }
 
         .dimension-select:hover {
-            background: rgba(248, 6, 21, 0.14);
-            border-color: rgba(248, 6, 21, 0.42);
+            background: var(--openclaw-brand-red-soft);
+            border-color: var(--openclaw-surface-border);
         }
 
         .dimension-select:focus-visible {
-            outline: 1px solid var(--openclaw-brand-red);
+            outline: 1px solid var(--openclaw-surface-border);
             outline-offset: 1px;
         }
 
@@ -1109,7 +1177,7 @@ export function getWebviewContent(
 <body>
     <div class="app">
         <div class="header">
-            <div>
+            <div class="header-brand">
                 <div class="header-title">OpenClaw</div>
                 <div class="header-subtitle">Each panel keeps its own composer and completion state</div>
             </div>
@@ -1556,6 +1624,10 @@ export function getWebviewContent(
                 return '<div class="file-dropdown' + (visible ? ' visible' : '') + '">' + html + '</div>';
             }
 
+            function formatModelLabel(model) {
+                return String(model || 'codex').toUpperCase();
+            }
+
             function renderChatTypeDropdown(thread) {
                 var visible = composerUi.threadId === thread.id && composerUi.dropdown === 'chatType';
                 var html = chatTypes.map(function(chatType) {
@@ -1582,7 +1654,7 @@ export function getWebviewContent(
                     return '<div class="selector-item' + (model === thread.currentModel ? ' selected' : '') + '"' +
                         ' data-action="select-model" data-thread-id="' + thread.id + '"' +
                         ' data-value="' + escapeAttr(model) + '">' +
-                        '<span class="selector-item-label">' + escapeHtml(model) + '</span>' +
+                        '<span class="selector-item-label">' + escapeHtml(formatModelLabel(model)) + '</span>' +
                         '<span class="selector-item-check">&#x2713;</span>' +
                     '</div>';
                 }).join('');
@@ -1738,7 +1810,7 @@ export function getWebviewContent(
                             '</button>' +
                             '<button class="dropdown-trigger" data-action="toggle-model" data-thread-id="' +
                                 thread.id + '" title="Model">' +
-                                '<span>' + escapeHtml(thread.currentModel || 'codex') + '</span>' +
+                                '<span>' + escapeHtml(formatModelLabel(thread.currentModel)) + '</span>' +
                                 '<span>&#x25BE;</span>' +
                             '</button>' +
                             '<button class="dropdown-trigger" data-action="toggle-settings" data-thread-id="' +
@@ -1837,7 +1909,7 @@ export function getWebviewContent(
                                 '<span class="pane-pill pane-source ' + sourceClass + '">' +
                                     escapeHtml(thread.source || 'API') +
                                 '</span>' +
-                                '<span class="pane-pill">' + escapeHtml(thread.currentModel || 'codex') + '</span>' +
+                                '<span class="pane-pill">' + escapeHtml(formatModelLabel(thread.currentModel)) + '</span>' +
                                 '<span class="pane-pill">' + escapeHtml(thread.currentChatType || 'chat') + '</span>' +
                                 '<span class="pane-pill pane-context" title="Context: ' + ctxInfo.label + '">' +
                                     '<span class="context-bar">' +

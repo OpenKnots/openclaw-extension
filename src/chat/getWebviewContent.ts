@@ -1,4 +1,12 @@
 import * as vscode from 'vscode';
+import { SLASH_COMMANDS } from './slashCommands';
+
+export interface SlashCommandEntry {
+    name: string;
+    description: string;
+    icon: string;
+    placeholder: string;
+}
 
 export function getWebviewContent(
     webview: vscode.Webview,
@@ -38,7 +46,7 @@ export function getWebviewContent(
         .app {
             height: 100vh;
             display: grid;
-            grid-template-rows: auto 1fr auto;
+            grid-template-rows: auto 1fr;
         }
 
         .header {
@@ -98,18 +106,19 @@ export function getWebviewContent(
         .pane-grid {
             flex: 1;
             min-height: 0;
-            padding: 10px 12px 0;
+            padding: 10px 12px 12px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(var(--grid-cols, 1), minmax(280px, 1fr));
+            grid-template-rows: repeat(var(--grid-rows, 1), minmax(340px, 1fr));
             gap: 10px;
             align-content: start;
             overflow: auto;
         }
 
         .pane {
-            min-height: 230px;
-            display: flex;
-            flex-direction: column;
+            min-height: 340px;
+            display: grid;
+            grid-template-rows: auto minmax(160px, 1fr) auto;
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             background:
@@ -145,17 +154,94 @@ export function getWebviewContent(
         }
 
         .pane-meta {
-            margin-top: 2px;
+            margin-top: 4px;
             display: flex;
-            gap: 8px;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
             font-size: 11px;
-            opacity: 0.5;
-            white-space: nowrap;
-            overflow: hidden;
+            opacity: 0.75;
+        }
+
+        .pane-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
         }
 
         .pane-status {
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .pane-status.complete {
+            color: var(--vscode-testing-iconPassed, var(--vscode-textLink-foreground, var(--vscode-foreground)));
+        }
+
+        .pane-status.running {
             color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+        }
+
+        .pane-status.error,
+        .pane-status.cancelled {
+            color: var(--vscode-errorForeground, #f48771);
+        }
+
+        .pane-source {
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+        }
+
+        .pane-source.api { color: var(--vscode-textLink-foreground, #3794ff); }
+        .pane-source.oauth { color: #c678dd; }
+        .pane-source.gateway { color: #e5c07b; }
+        .pane-source.local { color: #98c379; }
+
+        .pane-context {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .context-bar {
+            width: 48px;
+            height: 5px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .context-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: var(--vscode-textLink-foreground, #3794ff);
+            transition: width 0.3s ease;
+        }
+
+        .context-bar-fill.warn {
+            background: #e5c07b;
+        }
+
+        .context-bar-fill.critical {
+            background: var(--vscode-errorForeground, #f48771);
+        }
+
+        .context-label {
+            white-space: nowrap;
+        }
+
+        .composer-token-est {
+            font-size: 10px;
+            opacity: 0.5;
+            white-space: nowrap;
+            transition: opacity 0.15s;
+        }
+
+        .composer-token-est.has-value {
+            opacity: 0.68;
         }
 
         .pane-actions {
@@ -181,9 +267,8 @@ export function getWebviewContent(
         }
 
         .pane-body {
-            flex: 1;
             min-height: 0;
-            overflow: auto;
+            overflow-y: auto;
             padding: 8px 10px 10px;
             display: flex;
             flex-direction: column;
@@ -227,50 +312,100 @@ export function getWebviewContent(
         }
 
         .message-tool {
+            align-self: stretch;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            overflow: hidden;
+        }
+
+        .message-tool summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 10px;
+            cursor: pointer;
+            list-style: none;
+            font-size: 11px;
+        }
+
+        .message-tool summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .message-tool-summary {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            align-self: flex-start;
-            padding: 3px 10px;
-            border-radius: 999px;
-            font-size: 11px;
-            opacity: 0.72;
-            background: rgba(255, 255, 255, 0.06);
+            gap: 8px;
+            min-width: 0;
         }
 
-        .message-tool.done {
-            opacity: 0.48;
-        }
-
-        .message-tool::before {
+        .message-tool-summary::before {
             content: '\\2699';
+            opacity: 0.8;
         }
 
-        .message-tool.done::before {
-            content: '\\2713';
+        .message-tool-count {
+            opacity: 0.72;
         }
 
-        .pane-streaming {
-            font-size: 11px;
-            opacity: 0.48;
+        .message-tool-status {
+            opacity: 0.62;
+            text-transform: lowercase;
+        }
+
+        .message-tool-body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
             padding: 0 10px 10px;
         }
 
-        .pane-streaming::after {
-            content: '';
-            animation: dots 1.4s steps(4, end) infinite;
+        .message-tool-entry {
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
         }
 
-        @keyframes dots {
-            0% { content: ''; }
-            25% { content: '.'; }
-            50% { content: '..'; }
-            75% { content: '...'; }
+        .message-tool-entry:first-child {
+            padding-top: 0;
+            border-top: 0;
+        }
+
+        .message-tool-entry-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+
+        .message-tool-entry-title {
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .message-tool-entry-status {
+            opacity: 0.62;
+            text-transform: lowercase;
+            white-space: nowrap;
+        }
+
+        .message-tool-details {
+            margin: 0;
+            padding: 8px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.16);
+            font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
+            font-size: 11px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
 
         .composer-shell {
             position: relative;
-            padding: 10px 12px 12px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
             background:
                 linear-gradient(180deg, rgba(0, 0, 0, 0.04), transparent),
@@ -281,9 +416,9 @@ export function getWebviewContent(
         .slash-dropdown,
         .selector-dropdown {
             position: absolute;
-            left: 12px;
-            right: 12px;
-            bottom: calc(100% - 4px);
+            left: 10px;
+            right: 10px;
+            bottom: calc(100% - 2px);
             display: none;
             max-height: 260px;
             overflow: auto;
@@ -303,8 +438,9 @@ export function getWebviewContent(
 
         .composer-card {
             position: relative;
+            margin: 10px;
             border-radius: 16px;
-            border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.08));
+            border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3));
             background: var(--vscode-input-background);
             overflow: hidden;
             transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
@@ -426,6 +562,17 @@ export function getWebviewContent(
             display: none;
         }
 
+        .composer-recommendations {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 0 10px 8px;
+        }
+
+        .composer-recommendations.hidden {
+            display: none;
+        }
+
         .att-pill {
             display: inline-flex;
             align-items: center;
@@ -459,6 +606,11 @@ export function getWebviewContent(
             align-items: center;
             gap: 6px;
             padding: 0 8px 8px;
+        }
+
+        .composer-status {
+            font-size: 11px;
+            opacity: 0.58;
         }
 
         .btn-attach,
@@ -501,7 +653,7 @@ export function getWebviewContent(
         .selector-search {
             width: calc(100% - 8px);
             margin: 4px;
-            border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.08));
+            border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3));
             background: var(--vscode-input-background);
             color: var(--vscode-input-foreground);
             border-radius: 8px;
@@ -568,7 +720,6 @@ export function getWebviewContent(
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            margin-top: 10px;
         }
 
         .rec-chip {
@@ -609,6 +760,22 @@ export function getWebviewContent(
             padding: 0;
         }
 
+        .dimension-select {
+            height: 24px;
+            padding: 0 6px;
+            font-size: 11px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.06);
+            color: inherit;
+            cursor: pointer;
+        }
+
+        .dimension-select:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
         @media (max-width: 780px) {
             .pane-grid {
                 grid-template-columns: 1fr;
@@ -625,9 +792,16 @@ export function getWebviewContent(
         <div class="header">
             <div>
                 <div class="header-title">OpenClaw</div>
-                <div class="header-subtitle">Parallel thread panes with an active tmux-style composer</div>
+                <div class="header-subtitle">Each panel keeps its own composer and completion state</div>
             </div>
             <div class="header-actions">
+                <select class="dimension-select" id="dimensionSelect" title="Grid dimension">
+                    <option value="1x1">1x1</option>
+                    <option value="2x2">2x2</option>
+                    <option value="2x3">2x3</option>
+                    <option value="3x3">3x3</option>
+                    <option value="4x4">4x4</option>
+                </select>
                 <button class="icon-btn" id="btn-new" title="New thread">+</button>
                 <button class="icon-btn" id="btn-split" title="Split from active thread">&#x2398;</button>
                 ${isSidebar ? '<button class="icon-btn" id="btn-popout" title="Open in editor">&#x2197;</button>' : ''}
@@ -637,73 +811,27 @@ export function getWebviewContent(
         <div class="workspace">
             <div class="pane-grid" id="paneGrid"></div>
         </div>
-
-        <div class="composer-shell" id="inputWrapper">
-            <div class="file-dropdown" id="fileDropdown"></div>
-            <div class="slash-dropdown" id="slashDropdown"></div>
-            <div class="selector-dropdown" id="chatTypeDropdown"></div>
-            <div class="selector-dropdown" id="modelDropdown"></div>
-
-            <div class="composer-card" id="inputCard">
-                <div class="drop-overlay" id="dropOverlay">Drop files to attach to the active thread</div>
-                <div class="composer-top">
-                    <div class="composer-target" id="composerTarget">No active thread</div>
-                    <div class="composer-top-spacer"></div>
-                    <button class="dropdown-trigger" id="btn-chat-type" title="Chat type">
-                        <span id="chatTypeLabel">Chat</span>
-                        <span>&#x25BE;</span>
-                    </button>
-                    <button class="dropdown-trigger" id="btn-model" title="Model">
-                        <span id="modelLabel">codex</span>
-                        <span>&#x25BE;</span>
-                    </button>
-                </div>
-                <textarea id="input" class="composer-input" rows="1" placeholder="Ask the active thread anything...  / commands  @ files"></textarea>
-                <div class="slash-hint" id="slashHint"></div>
-                <div class="attachments" id="attachments"></div>
-                <div class="composer-footer">
-                    <button class="btn-attach" id="btn-attach" title="Attach file">+</button>
-                    <span style="font-size:11px; opacity:0.48;">Ctrl+Enter to send to the active pane</span>
-                    <button class="btn-send" id="btn-send" title="Send">&#x2191;</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script nonce="${nonce}">
         (function() {
             var vscode = acquireVsCodeApi();
             var paneGrid = document.getElementById('paneGrid');
-            var inputWrapper = document.getElementById('inputWrapper');
-            var inputCard = document.getElementById('inputCard');
-            var inputEl = document.getElementById('input');
-            var btnSend = document.getElementById('btn-send');
-            var btnAttach = document.getElementById('btn-attach');
+            var dimensionSelect = document.getElementById('dimensionSelect');
             var btnNew = document.getElementById('btn-new');
             var btnSplit = document.getElementById('btn-split');
             var btnPopout = document.getElementById('btn-popout');
-            var dropOverlay = document.getElementById('dropOverlay');
-            var slashDropdown = document.getElementById('slashDropdown');
-            var slashHint = document.getElementById('slashHint');
-            var attachmentsEl = document.getElementById('attachments');
-            var fileDropdownEl = document.getElementById('fileDropdown');
-            var composerTargetEl = document.getElementById('composerTarget');
-            var btnChatType = document.getElementById('btn-chat-type');
-            var btnModelEl = document.getElementById('btn-model');
-            var chatTypeDropdown = document.getElementById('chatTypeDropdown');
-            var modelDropdown = document.getElementById('modelDropdown');
-            var chatTypeLabelEl = document.getElementById('chatTypeLabel');
-            var modelLabelEl = document.getElementById('modelLabel');
 
-            var slashCommands = [];
+            var slashCommands = ${JSON.stringify(SLASH_COMMANDS.map(c => ({
+                name: c.name,
+                description: c.description,
+                icon: c.icon,
+                placeholder: c.placeholder,
+            })))};
             var availableModels = [];
             var recommendations = [];
-            var activeSlashIndex = 0;
-            var activeFileIndex = 0;
-            var atMentionActive = false;
-            var atMentionStart = -1;
-            var fileSearchDebounce = null;
-            var dragDepth = 0;
+            var drafts = Object.create(null);
+            var currentDimension = '1x1';
 
             var chatTypes = [
                 { id: 'chat', label: 'Chat' },
@@ -712,19 +840,44 @@ export function getWebviewContent(
                 { id: 'plan', label: 'Plan' }
             ];
 
+            var composerUi = {
+                threadId: '',
+                dropdown: '',
+                activeSlashIndex: 0,
+                activeFileIndex: 0,
+                atMentionThreadId: '',
+                atMentionStart: -1,
+                fileSearchDebounce: null,
+                fileResults: [],
+                modelQuery: '',
+                dragThreadId: ''
+            };
+
             var state = {
                 activeThreadId: '',
                 visibleThreadIds: [],
                 threads: []
             };
 
-            function getActiveThread() {
+            function getThreadById(threadId) {
                 for (var i = 0; i < state.threads.length; i++) {
-                    if (state.threads[i].id === state.activeThreadId) {
+                    if (state.threads[i].id === threadId) {
                         return state.threads[i];
                     }
                 }
-                return state.threads[0] || null;
+                return null;
+            }
+
+            function getActiveThread() {
+                return getThreadById(state.activeThreadId) || state.threads[0] || null;
+            }
+
+            function getDraft(threadId) {
+                return drafts[threadId] || '';
+            }
+
+            function setDraft(threadId, value) {
+                drafts[threadId] = value;
             }
 
             function escapeHtml(text) {
@@ -733,56 +886,365 @@ export function getWebviewContent(
                 return el.innerHTML;
             }
 
-            function autoResizeInput() {
-                inputEl.style.height = 'auto';
-                inputEl.style.height = Math.min(inputEl.scrollHeight, 180) + 'px';
+            function escapeAttr(text) {
+                return escapeHtml(text).replace(/"/g, '&quot;');
             }
 
-            function scrollPaneToBottom(paneBody) {
-                if (paneBody) {
+            function autoResizeTextarea(textarea) {
+                if (!textarea) {
+                    return;
+                }
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px';
+            }
+
+            var userScrolledUp = Object.create(null);
+
+            function isNearBottom(el) {
+                if (!el) { return true; }
+                return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+            }
+
+            function scrollPaneToBottom(paneBody, threadId) {
+                if (paneBody && (!threadId || !userScrolledUp[threadId])) {
                     paneBody.scrollTop = paneBody.scrollHeight;
                 }
             }
 
-            function setComposerThread(thread) {
-                if (!thread) {
-                    composerTargetEl.innerHTML = 'No active thread';
-                    attachmentsEl.innerHTML = '';
-                    chatTypeLabelEl.textContent = 'Chat';
-                    modelLabelEl.textContent = 'codex';
-                    return;
+            function getThreadStatusLabel(thread) {
+                switch (thread.status) {
+                    case 'running':
+                        return 'Running';
+                    case 'complete':
+                        return 'Complete';
+                    case 'error':
+                        return 'Error';
+                    case 'cancelled':
+                        return 'Stopped';
+                    default:
+                        return 'Ready';
+                }
+            }
+
+            function getThreadStatusDetail(thread) {
+                switch (thread.status) {
+                    case 'running':
+                        return 'Generating response';
+                    case 'complete':
+                        return 'Response complete';
+                    case 'error':
+                        return 'Last run returned an error';
+                    case 'cancelled':
+                        return 'Generation stopped';
+                    default:
+                        return 'Enter sends, Shift+Enter new line';
+                }
+            }
+
+            function formatTokenCount(n) {
+                if (n >= 1000000) { return (n / 1000000).toFixed(1) + 'M'; }
+                if (n >= 1000) { return (n / 1000).toFixed(1) + 'k'; }
+                return String(n);
+            }
+
+            function formatContextGauge(used, max) {
+                var pct = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
+                var level = pct >= 90 ? 'critical' : pct >= 70 ? 'warn' : '';
+                return {
+                    pct: pct,
+                    level: level,
+                    label: formatTokenCount(used) + ' / ' + formatTokenCount(max)
+                };
+            }
+
+            function estimateTokens(text) {
+                if (!text) { return 0; }
+                return Math.ceil(text.length / 4);
+            }
+
+            function getToolGroupStatus(entries) {
+                return entries.some(function(entry) {
+                    return entry.status !== 'done';
+                }) ? 'running' : 'done';
+            }
+
+            function renderToolMessage(message) {
+                var node = document.createElement('details');
+                var entries = Array.isArray(message.entries) ? message.entries : [];
+                var status = getToolGroupStatus(entries);
+                node.className = 'message-tool';
+                if (status === 'running') {
+                    node.open = true;
                 }
 
-                composerTargetEl.innerHTML =
-                    '<span>Active</span><strong>' + escapeHtml(thread.title) + '</strong><span>#' + thread.index + '</span>';
-                renderAttachments(thread.pendingAttachments || []);
+                var summary = document.createElement('summary');
+                summary.innerHTML =
+                    '<span class="message-tool-summary">' +
+                        '<span>Tools</span>' +
+                        '<span class="message-tool-count">' + entries.length + '</span>' +
+                    '</span>' +
+                    '<span class="message-tool-status">' + escapeHtml(status) + '</span>';
+                node.appendChild(summary);
 
+                var toolBody = document.createElement('div');
+                toolBody.className = 'message-tool-body';
+
+                entries.forEach(function(entry) {
+                    var item = document.createElement('div');
+                    item.className = 'message-tool-entry';
+                    item.innerHTML =
+                        '<div class="message-tool-entry-header">' +
+                            '<span class="message-tool-entry-title">' + escapeHtml(entry.title || 'tool') + '</span>' +
+                            '<span class="message-tool-entry-status">' + escapeHtml(entry.status || '') + '</span>' +
+                        '</div>' +
+                        '<pre class="message-tool-details">' + escapeHtml(entry.details || '') + '</pre>';
+                    toolBody.appendChild(item);
+                });
+
+                node.appendChild(toolBody);
+                return node;
+            }
+
+            function getSlashQuery(value) {
+                if (!value || value.charAt(0) !== '/') {
+                    return null;
+                }
+                var spaceIndex = value.indexOf(' ');
+                if (spaceIndex === -1) {
+                    return value.substring(1);
+                }
+                return null;
+            }
+
+            function filterSlashCommands(query) {
+                var lower = (query || '').toLowerCase();
+                return slashCommands.filter(function(command) {
+                    return command.name.indexOf(lower) === 0;
+                });
+            }
+
+            function getActiveSlashCommands(threadId) {
+                if (composerUi.threadId !== threadId || composerUi.dropdown !== 'slash') {
+                    return [];
+                }
+                var query = getSlashQuery(getDraft(threadId));
+                if (query === null) {
+                    return [];
+                }
+                return filterSlashCommands(query);
+            }
+
+            function renderSlashHint(threadId) {
+                var commands = getActiveSlashCommands(threadId);
+                if (!commands.length) {
+                    return '';
+                }
+                var activeIndex = Math.max(0, Math.min(composerUi.activeSlashIndex, commands.length - 1));
+                var command = commands[activeIndex];
+                return '<div class="slash-hint visible">/' + escapeHtml(command.name) + ' - ' +
+                    escapeHtml(command.description) + '</div>';
+            }
+
+            function renderSlashDropdown(threadId) {
+                var commands = getActiveSlashCommands(threadId);
+                var visible = commands.length > 0;
+                var html = commands.map(function(command, index) {
+                    return '<div class="slash-item' + (index === composerUi.activeSlashIndex ? ' active' : '') + '"' +
+                        ' data-action="pick-slash" data-thread-id="' + threadId + '"' +
+                        ' data-command="' + escapeAttr(command.name) + '">' +
+                        '<div>' + escapeHtml(command.icon) + '</div>' +
+                        '<div class="slash-info">' +
+                            '<div class="slash-name">/' + escapeHtml(command.name) + '</div>' +
+                            '<div class="slash-desc">' + escapeHtml(command.description) + '</div>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+                return '<div class="slash-dropdown' + (visible ? ' visible' : '') + '">' + html + '</div>';
+            }
+
+            function renderFileDropdown(threadId) {
+                var visible = composerUi.threadId === threadId &&
+                    composerUi.dropdown === 'file' &&
+                    composerUi.fileResults.length > 0;
+                var html = composerUi.fileResults.map(function(file, index) {
+                    return '<div class="file-item' + (index === composerUi.activeFileIndex ? ' active' : '') + '"' +
+                        ' data-action="pick-file" data-thread-id="' + threadId + '"' +
+                        ' data-path="' + escapeAttr(file.path) + '">' +
+                        '<span class="file-item-name">' + escapeHtml(file.name) + '</span>' +
+                        '<span class="file-item-path">' + escapeHtml(file.relativePath) + '</span>' +
+                    '</div>';
+                }).join('');
+                return '<div class="file-dropdown' + (visible ? ' visible' : '') + '">' + html + '</div>';
+            }
+
+            function renderChatTypeDropdown(thread) {
+                var visible = composerUi.threadId === thread.id && composerUi.dropdown === 'chatType';
+                var html = chatTypes.map(function(chatType) {
+                    return '<div class="selector-item' +
+                        (chatType.id === thread.currentChatType ? ' selected' : '') + '"' +
+                        ' data-action="select-chat-type" data-thread-id="' + thread.id + '"' +
+                        ' data-value="' + escapeAttr(chatType.id) + '">' +
+                        '<span class="selector-item-label">' + escapeHtml(chatType.label) + '</span>' +
+                        '<span class="selector-item-check">&#x2713;</span>' +
+                    '</div>';
+                }).join('');
+                return '<div class="selector-dropdown' + (visible ? ' visible' : '') + '">' + html + '</div>';
+            }
+
+            function renderModelDropdown(thread) {
+                var visible = composerUi.threadId === thread.id && composerUi.dropdown === 'model';
+                var models = availableModels.slice();
+                if (composerUi.modelQuery) {
+                    models = models.filter(function(model) {
+                        return model.toLowerCase().indexOf(composerUi.modelQuery.toLowerCase()) !== -1;
+                    });
+                }
+                var items = models.map(function(model) {
+                    return '<div class="selector-item' + (model === thread.currentModel ? ' selected' : '') + '"' +
+                        ' data-action="select-model" data-thread-id="' + thread.id + '"' +
+                        ' data-value="' + escapeAttr(model) + '">' +
+                        '<span class="selector-item-label">' + escapeHtml(model) + '</span>' +
+                        '<span class="selector-item-check">&#x2713;</span>' +
+                    '</div>';
+                }).join('');
+                return '<div class="selector-dropdown' + (visible ? ' visible' : '') + '">' +
+                    '<input class="selector-search" data-thread-id="' + thread.id + '"' +
+                        ' placeholder="Search models" value="' + escapeAttr(composerUi.modelQuery) + '">' +
+                    items +
+                '</div>';
+            }
+
+            function renderAttachments(thread) {
+                return (thread.pendingAttachments || []).map(function(file, index) {
+                    return '<span class="att-pill">' +
+                        '<span class="att-pill-name" title="' + escapeAttr(file.path) + '">' +
+                            escapeHtml(file.name) +
+                        '</span>' +
+                        '<button class="att-pill-remove" data-action="remove-attachment"' +
+                            ' data-thread-id="' + thread.id + '" data-index="' + index + '">&#x00d7;</button>' +
+                    '</span>';
+                }).join('');
+            }
+
+            function renderComposerRecommendations(thread) {
+                var showRecommendations = Boolean(
+                    thread &&
+                    recommendations.length > 0 &&
+                    (thread.messages || []).length === 0 &&
+                    !thread.pendingAssistantText
+                );
+
+                if (!showRecommendations) {
+                    return '<div class="composer-recommendations hidden"></div>';
+                }
+
+                return '<div class="composer-recommendations"><div class="recommendations">' +
+                    recommendations.map(function(rec) {
+                        return '<button class="rec-chip" data-action="use-recommendation"' +
+                            ' data-thread-id="' + thread.id + '" data-command="' + escapeAttr(rec.command) + '">' +
+                            escapeHtml(rec.icon + ' ' + rec.label) +
+                        '</button>';
+                    }).join('') +
+                '</div></div>';
+            }
+
+            function renderComposer(thread) {
                 var chatType = chatTypes.find(function(item) { return item.id === thread.currentChatType; });
-                chatTypeLabelEl.textContent = chatType ? chatType.label : 'Chat';
-                modelLabelEl.textContent = thread.currentModel || 'codex';
+                var draft = getDraft(thread.id);
+                var placeholder = 'Ask this thread anything...  / commands  @ files';
+
+                return '<div class="composer-shell" data-thread-id="' + thread.id + '">' +
+                    renderFileDropdown(thread.id) +
+                    renderSlashDropdown(thread.id) +
+                    renderChatTypeDropdown(thread) +
+                    renderModelDropdown(thread) +
+                    '<div class="composer-card' + (composerUi.dragThreadId === thread.id ? ' drag-active' : '') + '" data-thread-id="' + thread.id + '">' +
+                        '<div class="drop-overlay' + (composerUi.dragThreadId === thread.id ? ' visible' : '') + '">' +
+                            'Drop files to attach to this thread' +
+                        '</div>' +
+                        '<div class="composer-top">' +
+                            '<div class="composer-target"><span>Thread</span><strong>' +
+                                escapeHtml(thread.title) +
+                            '</strong><span>#' + thread.index + '</span></div>' +
+                            '<div class="composer-top-spacer"></div>' +
+                            '<button class="dropdown-trigger" data-action="toggle-chat-type" data-thread-id="' +
+                                thread.id + '" title="Chat type">' +
+                                '<span>' + escapeHtml(chatType ? chatType.label : 'Chat') + '</span>' +
+                                '<span>&#x25BE;</span>' +
+                            '</button>' +
+                            '<button class="dropdown-trigger" data-action="toggle-model" data-thread-id="' +
+                                thread.id + '" title="Model">' +
+                                '<span>' + escapeHtml(thread.currentModel || 'codex') + '</span>' +
+                                '<span>&#x25BE;</span>' +
+                            '</button>' +
+                        '</div>' +
+                        '<textarea class="composer-input" data-thread-id="' + thread.id + '"' +
+                            ' rows="1" placeholder="' + escapeAttr(placeholder) + '">' +
+                            escapeHtml(draft) +
+                        '</textarea>' +
+                        renderSlashHint(thread.id) +
+                        '<div class="attachments">' + renderAttachments(thread) + '</div>' +
+                        renderComposerRecommendations(thread) +
+                        '<div class="composer-footer">' +
+                            '<button class="btn-attach" data-action="attach" data-thread-id="' + thread.id +
+                                '" title="Attach file">+</button>' +
+                            '<span class="composer-status">' + escapeHtml(getThreadStatusDetail(thread)) + '</span>' +
+                            (function() {
+                                var est = estimateTokens(draft);
+                                var hasVal = est > 0;
+                                return '<span class="composer-token-est' + (hasVal ? ' has-value' : '') +
+                                    '" data-token-est="' + thread.id + '">' +
+                                    (hasVal ? '~' + formatTokenCount(est) + ' tokens' : '') +
+                                '</span>';
+                            })() +
+                            '<button class="btn-send' + (thread.isStreaming ? ' streaming' : '') + '"' +
+                                ' data-action="' + (thread.isStreaming ? 'cancel' : 'send') + '"' +
+                                ' data-thread-id="' + thread.id + '"' +
+                                ' title="' + (thread.isStreaming ? 'Stop' : 'Send') + '">' +
+                                (thread.isStreaming ? '&#x25A0;' : '&#x2191;') +
+                            '</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
             }
 
             function renderPane(thread) {
                 var pane = document.createElement('section');
+                var statusClass = (thread.status || 'idle').toLowerCase();
                 pane.className = 'pane' + (thread.id === state.activeThreadId ? ' active' : '');
                 pane.dataset.threadId = thread.id;
 
-                var statusText = thread.isStreaming ? 'running' : 'idle';
+                var sourceClass = (thread.source || 'API').toLowerCase().replace(/[^a-z]/g, '');
+                var ctxInfo = formatContextGauge(thread.contextTokens || 0, thread.contextMax || 128000);
+
                 pane.innerHTML =
                     '<div class="pane-header">' +
                         '<div class="pane-header-main">' +
                             '<div class="pane-title">' + escapeHtml(thread.title) + '</div>' +
                             '<div class="pane-meta">' +
-                                '<span>#' + thread.index + '</span>' +
-                                '<span>' + escapeHtml(thread.currentModel || 'codex') + '</span>' +
-                                '<span>' + escapeHtml(thread.currentChatType || 'chat') + '</span>' +
-                                '<span class="pane-status">' + statusText + '</span>' +
+                                '<span class="pane-pill">#' + thread.index + '</span>' +
+                                '<span class="pane-pill pane-source ' + sourceClass + '">' +
+                                    escapeHtml(thread.source || 'API') +
+                                '</span>' +
+                                '<span class="pane-pill">' + escapeHtml(thread.currentModel || 'codex') + '</span>' +
+                                '<span class="pane-pill">' + escapeHtml(thread.currentChatType || 'chat') + '</span>' +
+                                '<span class="pane-pill pane-context" title="Context: ' + ctxInfo.label + '">' +
+                                    '<span class="context-bar">' +
+                                        '<span class="context-bar-fill ' + ctxInfo.level + '"' +
+                                            ' style="width:' + ctxInfo.pct + '%"></span>' +
+                                    '</span>' +
+                                    '<span class="context-label">' + ctxInfo.label + '</span>' +
+                                '</span>' +
+                                '<span class="pane-pill pane-status ' + escapeHtml(statusClass) + '">' +
+                                    escapeHtml(getThreadStatusLabel(thread)) +
+                                '</span>' +
                             '</div>' +
                         '</div>' +
                         '<div class="pane-actions">' +
-                            '<button class="pane-btn" data-action="focus">Focus</button>' +
-                            '<button class="pane-btn" data-action="clear">Clear</button>' +
-                            '<button class="pane-btn" data-action="close">Close</button>' +
+                            '<button class="pane-btn" data-action="focus" data-thread-id="' + thread.id + '">Focus</button>' +
+                            '<button class="pane-btn" data-action="export" data-thread-id="' + thread.id + '">Export</button>' +
+                            '<button class="pane-btn" data-action="clear" data-thread-id="' + thread.id + '">Clear</button>' +
+                            '<button class="pane-btn" data-action="close" data-thread-id="' + thread.id + '">Close</button>' +
                         '</div>' +
                     '</div>';
 
@@ -793,28 +1255,16 @@ export function getWebviewContent(
                 if (messages.length === 0 && !thread.pendingAssistantText) {
                     var empty = document.createElement('div');
                     empty.className = 'pane-empty';
-
-                    var recHtml = '';
-                    if (thread.id === state.activeThreadId && recommendations.length > 0) {
-                        recHtml = '<div class="recommendations">' + recommendations.map(function(rec) {
-                            return '<button class="rec-chip" data-command="' + escapeHtml(rec.command) + '">' +
-                                escapeHtml(rec.icon + ' ' + rec.label) +
-                            '</button>';
-                        }).join('') + '</div>';
-                    }
-
                     empty.innerHTML =
                         '<div class="empty-detail">' +
-                            '<div>Empty thread. Focus this pane and start a new conversation.</div>' +
-                            recHtml +
+                            '<div>Empty thread. Start from the composer in this panel.</div>' +
                         '</div>';
                     body.appendChild(empty);
                 } else {
                     messages.forEach(function(message) {
                         var node = document.createElement('div');
                         if (message.role === 'tool') {
-                            node.className = 'message-tool' + (message.status === 'done' ? ' done' : '');
-                            node.textContent = message.title;
+                            node = renderToolMessage(message);
                         } else if (message.role === 'assistant') {
                             node.className = 'message message-assistant';
                             node.innerHTML = message.html || escapeHtml(message.content || '');
@@ -836,60 +1286,57 @@ export function getWebviewContent(
                     }
                 }
 
+                (function(tid) {
+                    body.addEventListener('scroll', function() {
+                        userScrolledUp[tid] = !isNearBottom(body);
+                    });
+                })(thread.id);
+
                 pane.appendChild(body);
 
-                if (thread.isStreaming) {
-                    var streaming = document.createElement('div');
-                    streaming.className = 'pane-streaming';
-                    streaming.textContent = 'Thinking';
-                    pane.appendChild(streaming);
-                }
+                var composerWrap = document.createElement('div');
+                composerWrap.innerHTML = renderComposer(thread);
+                pane.appendChild(composerWrap.firstChild);
 
                 setTimeout(function() {
-                    scrollPaneToBottom(body);
+                    scrollPaneToBottom(body, thread.id);
+                    autoResizeTextarea(pane.querySelector('.composer-input'));
                 }, 0);
-
-                pane.addEventListener('click', function(event) {
-                    var actionEl = event.target.closest('[data-action]');
-                    if (actionEl) {
-                        var action = actionEl.getAttribute('data-action');
-                        if (action === 'focus') {
-                            vscode.postMessage({ type: 'focusThread', threadId: thread.id });
-                            inputEl.focus();
-                        } else if (action === 'clear') {
-                            vscode.postMessage({ type: 'clearThread', threadId: thread.id });
-                        } else if (action === 'close') {
-                            vscode.postMessage({ type: 'closeThread', threadId: thread.id });
-                        }
-                        return;
-                    }
-
-                    if (thread.id !== state.activeThreadId) {
-                        vscode.postMessage({ type: 'focusThread', threadId: thread.id });
-                    }
-                });
-
-                body.addEventListener('click', function(event) {
-                    var rec = event.target.closest('.rec-chip');
-                    if (!rec) return;
-                    var command = rec.getAttribute('data-command');
-                    if (command) {
-                        inputEl.value = command + ' ';
-                        inputEl.focus();
-                        autoResizeInput();
-                        checkSlashInput();
-                    }
-                });
 
                 return pane;
             }
 
-            function renderState() {
+            function cleanupDrafts() {
+                var valid = Object.create(null);
+                state.threads.forEach(function(thread) {
+                    valid[thread.id] = true;
+                    if (typeof drafts[thread.id] !== 'string') {
+                        drafts[thread.id] = '';
+                    }
+                });
+                Object.keys(drafts).forEach(function(threadId) {
+                    if (!valid[threadId]) {
+                        delete drafts[threadId];
+                    }
+                });
+            }
+
+            function renderState(preserve) {
+                cleanupDrafts();
+
+                var savedScrolls = Object.create(null);
+                var oldBodies = paneGrid.querySelectorAll('.pane-body');
+                for (var i = 0; i < oldBodies.length; i++) {
+                    var paneEl = oldBodies[i].closest('.pane');
+                    if (paneEl && paneEl.dataset.threadId) {
+                        savedScrolls[paneEl.dataset.threadId] = oldBodies[i].scrollTop;
+                    }
+                }
+
                 paneGrid.innerHTML = '';
 
                 if (!state.threads || state.threads.length === 0) {
                     paneGrid.innerHTML = '<div class="pane-empty"><div class="empty-detail">No threads available.</div></div>';
-                    setComposerThread(null);
                     return;
                 }
 
@@ -897,266 +1344,83 @@ export function getWebviewContent(
                     paneGrid.appendChild(renderPane(thread));
                 });
 
-                setComposerThread(getActiveThread());
-            }
-
-            function renderAttachments(files) {
-                attachmentsEl.innerHTML = '';
-                (files || []).forEach(function(file, index) {
-                    var pill = document.createElement('span');
-                    pill.className = 'att-pill';
-                    pill.innerHTML =
-                        '<span class="att-pill-name" title="' + escapeHtml(file.path) + '">' + escapeHtml(file.name) + '</span>' +
-                        '<button class="att-pill-remove" data-index="' + index + '">&#x00d7;</button>';
-                    attachmentsEl.appendChild(pill);
+                state.threads.forEach(function(thread) {
+                    if (userScrolledUp[thread.id] && savedScrolls[thread.id] != null) {
+                        var paneEl = paneGrid.querySelector('.pane[data-thread-id="' + thread.id + '"] .pane-body');
+                        if (paneEl) {
+                            paneEl.scrollTop = savedScrolls[thread.id];
+                        }
+                    }
                 });
+
+                var restore = preserve || {};
+                if (restore.threadId) {
+                    var textarea = paneGrid.querySelector('.composer-input[data-thread-id="' + restore.threadId + '"]');
+                    if (textarea) {
+                        textarea.focus();
+                        if (typeof restore.selectionStart === 'number' && typeof restore.selectionEnd === 'number') {
+                            textarea.setSelectionRange(restore.selectionStart, restore.selectionEnd);
+                        }
+                        autoResizeTextarea(textarea);
+                    }
+                }
             }
 
-            attachmentsEl.addEventListener('click', function(event) {
-                var button = event.target.closest('[data-index]');
-                var activeThread = getActiveThread();
-                if (!button || !activeThread) return;
-                vscode.postMessage({
-                    type: 'removeAttachment',
-                    threadId: activeThread.id,
-                    index: Number(button.getAttribute('data-index'))
-                });
-            });
-
-            function getSlashQuery() {
-                var value = inputEl.value;
-                if (value.charAt(0) !== '/') return null;
-                var spaceIndex = value.indexOf(' ');
-                if (spaceIndex === -1) return value.substring(1);
-                return null;
+            function captureComposerFocus() {
+                var active = document.activeElement;
+                if (!active || !active.classList || !active.classList.contains('composer-input')) {
+                    return null;
+                }
+                return {
+                    threadId: active.getAttribute('data-thread-id'),
+                    selectionStart: active.selectionStart,
+                    selectionEnd: active.selectionEnd
+                };
             }
 
-            function filterSlashCommands(query) {
-                var lower = query.toLowerCase();
-                return slashCommands.filter(function(command) {
-                    return command.name.indexOf(lower) === 0;
-                });
-            }
-
-            function hideDropdown() {
-                slashDropdown.classList.remove('visible');
-                slashDropdown.innerHTML = '';
-            }
-
-            function clearSlashState() {
-                slashHint.classList.remove('visible');
-                slashHint.textContent = '';
-                inputEl.placeholder = 'Ask the active thread anything...  / commands  @ files';
-            }
-
-            function selectSlashCommand(command) {
-                inputEl.value = '/' + command.name + ' ';
-                inputEl.placeholder = command.placeholder || inputEl.placeholder;
-                slashHint.textContent = '/' + command.name + ' - ' + command.description;
-                slashHint.classList.add('visible');
-                hideDropdown();
-                inputEl.focus();
-                autoResizeInput();
-            }
-
-            function renderDropdown(commands) {
-                if (!commands.length) {
-                    hideDropdown();
+            function setActiveThread(threadId) {
+                if (!threadId || state.activeThreadId === threadId) {
                     return;
                 }
-
-                slashDropdown.innerHTML = '';
-                commands.forEach(function(command, index) {
-                    var item = document.createElement('div');
-                    item.className = 'slash-item' + (index === activeSlashIndex ? ' active' : '');
-                    item.innerHTML =
-                        '<div>' + escapeHtml(command.icon) + '</div>' +
-                        '<div class="slash-info">' +
-                            '<div class="slash-name">/' + escapeHtml(command.name) + '</div>' +
-                            '<div class="slash-desc">' + escapeHtml(command.description) + '</div>' +
-                        '</div>';
-                    item.addEventListener('mousedown', function(event) {
-                        event.preventDefault();
-                        selectSlashCommand(command);
-                    });
-                    item.addEventListener('mouseenter', function() {
-                        activeSlashIndex = index;
-                        updateSlashActiveItem();
-                    });
-                    slashDropdown.appendChild(item);
-                });
-                slashDropdown.classList.add('visible');
+                var focus = captureComposerFocus();
+                state.activeThreadId = threadId;
+                vscode.postMessage({ type: 'focusThread', threadId: threadId });
+                renderState(focus);
             }
 
-            function updateSlashActiveItem() {
-                var items = slashDropdown.querySelectorAll('.slash-item');
-                items.forEach(function(item, index) {
-                    item.classList.toggle('active', index === activeSlashIndex);
-                });
+            function closeComposerDropdowns() {
+                composerUi.dropdown = '';
+                composerUi.threadId = '';
+                composerUi.activeSlashIndex = 0;
+                composerUi.activeFileIndex = 0;
+                composerUi.modelQuery = '';
             }
 
-            function checkSlashInput() {
-                var query = getSlashQuery();
-                if (query === null) {
-                    hideDropdown();
-                    if (inputEl.value.charAt(0) !== '/') clearSlashState();
-                    return;
+            function clearAtMention() {
+                composerUi.atMentionThreadId = '';
+                composerUi.atMentionStart = -1;
+                composerUi.fileResults = [];
+                if (composerUi.fileSearchDebounce) {
+                    clearTimeout(composerUi.fileSearchDebounce);
+                    composerUi.fileSearchDebounce = null;
                 }
-
-                var filtered = filterSlashCommands(query);
-                activeSlashIndex = Math.max(0, Math.min(activeSlashIndex, filtered.length - 1));
-                renderDropdown(filtered);
-            }
-
-            function closeAllSelectors() {
-                chatTypeDropdown.classList.remove('visible');
-                modelDropdown.classList.remove('visible');
-            }
-
-            function selectChatType(id) {
-                var activeThread = getActiveThread();
-                if (!activeThread) return;
-                closeAllSelectors();
-                vscode.postMessage({ type: 'setChatType', threadId: activeThread.id, chatType: id });
-            }
-
-            function renderChatTypeDropdown() {
-                var activeThread = getActiveThread();
-                if (!activeThread) return;
-
-                chatTypeDropdown.innerHTML = '';
-                chatTypes.forEach(function(chatType) {
-                    var item = document.createElement('div');
-                    item.className = 'selector-item' + (chatType.id === activeThread.currentChatType ? ' selected' : '');
-                    item.innerHTML =
-                        '<span class="selector-item-label">' + escapeHtml(chatType.label) + '</span>' +
-                        '<span class="selector-item-check">&#x2713;</span>';
-                    item.addEventListener('mousedown', function(event) {
-                        event.preventDefault();
-                        selectChatType(chatType.id);
-                    });
-                    chatTypeDropdown.appendChild(item);
-                });
-                chatTypeDropdown.classList.add('visible');
-            }
-
-            function selectModel(model) {
-                var activeThread = getActiveThread();
-                if (!activeThread) return;
-                closeAllSelectors();
-                vscode.postMessage({ type: 'setModel', threadId: activeThread.id, model: model });
-            }
-
-            function renderModelList(query) {
-                var activeThread = getActiveThread();
-                if (!activeThread) return;
-
-                var existingItems = modelDropdown.querySelectorAll('.selector-item');
-                existingItems.forEach(function(item) { item.remove(); });
-
-                var models = availableModels.slice();
-                if (query) {
-                    models = models.filter(function(model) {
-                        return model.toLowerCase().indexOf(query.toLowerCase()) !== -1;
-                    });
-                }
-
-                models.forEach(function(model) {
-                    var item = document.createElement('div');
-                    item.className = 'selector-item' + (model === activeThread.currentModel ? ' selected' : '');
-                    item.innerHTML =
-                        '<span class="selector-item-label">' + escapeHtml(model) + '</span>' +
-                        '<span class="selector-item-check">&#x2713;</span>';
-                    item.addEventListener('mousedown', function(event) {
-                        event.preventDefault();
-                        selectModel(model);
-                    });
-                    modelDropdown.appendChild(item);
-                });
-            }
-
-            function renderModelDropdown() {
-                modelDropdown.innerHTML = '';
-                var search = document.createElement('input');
-                search.className = 'selector-search';
-                search.placeholder = 'Search models';
-                search.addEventListener('input', function() {
-                    renderModelList(search.value);
-                });
-                search.addEventListener('mousedown', function(event) {
-                    event.stopPropagation();
-                });
-                modelDropdown.appendChild(search);
-                renderModelList('');
-                modelDropdown.classList.add('visible');
-                setTimeout(function() { search.focus(); }, 0);
-            }
-
-            function hideFileDropdown() {
-                atMentionActive = false;
-                atMentionStart = -1;
-                activeFileIndex = 0;
-                fileDropdownEl.classList.remove('visible');
-                fileDropdownEl.innerHTML = '';
-                if (fileSearchDebounce) {
-                    clearTimeout(fileSearchDebounce);
-                    fileSearchDebounce = null;
+                if (composerUi.dropdown === 'file') {
+                    closeComposerDropdowns();
                 }
             }
 
-            function selectFileFromDropdown(filePath) {
-                var activeThread = getActiveThread();
-                if (!activeThread) return;
-
-                var text = inputEl.value;
-                var cursor = inputEl.selectionStart;
-                var before = text.substring(0, atMentionStart);
-                var after = text.substring(cursor);
-                inputEl.value = before + after;
-                inputEl.selectionStart = inputEl.selectionEnd = before.length;
-                hideFileDropdown();
-                autoResizeInput();
-                vscode.postMessage({ type: 'attachFile', threadId: activeThread.id, filePath: filePath });
-                inputEl.focus();
-            }
-
-            function updateFileActiveItem() {
-                var items = fileDropdownEl.querySelectorAll('.file-item');
-                items.forEach(function(item, index) {
-                    item.classList.toggle('active', index === activeFileIndex);
-                });
-            }
-
-            function renderFileResults(files) {
-                if (!files || !files.length || !atMentionActive) {
-                    fileDropdownEl.classList.remove('visible');
-                    return;
+            function queueFileSearch(threadId, query) {
+                if (composerUi.fileSearchDebounce) {
+                    clearTimeout(composerUi.fileSearchDebounce);
                 }
-
-                fileDropdownEl.innerHTML = '';
-                files.forEach(function(file, index) {
-                    var item = document.createElement('div');
-                    item.className = 'file-item' + (index === activeFileIndex ? ' active' : '');
-                    item.dataset.path = file.path;
-                    item.innerHTML =
-                        '<span class="file-item-name">' + escapeHtml(file.name) + '</span>' +
-                        '<span class="file-item-path">' + escapeHtml(file.relativePath) + '</span>';
-                    item.addEventListener('mousedown', function(event) {
-                        event.preventDefault();
-                        selectFileFromDropdown(file.path);
-                    });
-                    item.addEventListener('mouseenter', function() {
-                        activeFileIndex = index;
-                        updateFileActiveItem();
-                    });
-                    fileDropdownEl.appendChild(item);
-                });
-                fileDropdownEl.classList.add('visible');
+                composerUi.fileSearchDebounce = setTimeout(function() {
+                    vscode.postMessage({ type: 'fileSearch', query: query, threadId: threadId });
+                }, 120);
             }
 
-            function checkAtMention() {
-                var cursor = inputEl.selectionStart;
-                var text = inputEl.value;
+            function checkAtMention(threadId, textarea) {
+                var cursor = textarea.selectionStart;
+                var text = textarea.value;
                 var atPos = -1;
 
                 for (var i = cursor - 1; i >= 0; i--) {
@@ -1172,67 +1436,72 @@ export function getWebviewContent(
                 }
 
                 if (atPos < 0) {
-                    if (atMentionActive) hideFileDropdown();
+                    clearAtMention();
                     return;
                 }
 
-                atMentionActive = true;
-                atMentionStart = atPos;
-                activeFileIndex = 0;
-
-                if (fileSearchDebounce) clearTimeout(fileSearchDebounce);
-                fileSearchDebounce = setTimeout(function() {
-                    vscode.postMessage({
-                        type: 'fileSearch',
-                        query: text.substring(atPos + 1, cursor)
-                    });
-                }, 120);
+                composerUi.threadId = threadId;
+                composerUi.dropdown = 'file';
+                composerUi.activeFileIndex = 0;
+                composerUi.atMentionThreadId = threadId;
+                composerUi.atMentionStart = atPos;
+                queueFileSearch(threadId, text.substring(atPos + 1, cursor));
             }
 
-            function hasFileDrag(dataTransfer) {
-                if (!dataTransfer || !dataTransfer.types) return false;
-                if (typeof dataTransfer.types.indexOf === 'function') {
-                    return dataTransfer.types.indexOf('Files') !== -1;
-                }
-                return Array.prototype.indexOf.call(dataTransfer.types, 'Files') !== -1;
-            }
-
-            function setDragActive(active) {
-                inputCard.classList.toggle('drag-active', active);
-                dropOverlay.classList.toggle('visible', active);
-            }
-
-            function extractDroppedPaths(dataTransfer) {
-                var paths = [];
-
-                function pushPath(file) {
-                    if (file && file.path && paths.indexOf(file.path) === -1) {
-                        paths.push(file.path);
+            function updateSlashState(threadId) {
+                var query = getSlashQuery(getDraft(threadId));
+                if (query === null) {
+                    if (composerUi.dropdown === 'slash' && composerUi.threadId === threadId) {
+                        closeComposerDropdowns();
                     }
+                    return;
                 }
 
-                if (dataTransfer.items) {
-                    for (var i = 0; i < dataTransfer.items.length; i++) {
-                        var item = dataTransfer.items[i];
-                        if (item.kind === 'file') {
-                            pushPath(item.getAsFile());
-                        }
+                var commands = filterSlashCommands(query);
+                if (!commands.length) {
+                    if (composerUi.dropdown === 'slash' && composerUi.threadId === threadId) {
+                        closeComposerDropdowns();
                     }
+                    return;
                 }
 
-                if (!paths.length && dataTransfer.files) {
-                    for (var j = 0; j < dataTransfer.files.length; j++) {
-                        pushPath(dataTransfer.files[j]);
-                    }
-                }
-
-                return paths;
+                composerUi.threadId = threadId;
+                composerUi.dropdown = 'slash';
+                composerUi.activeSlashIndex = Math.max(0, Math.min(composerUi.activeSlashIndex, commands.length - 1));
             }
 
-            function send() {
-                var activeThread = getActiveThread();
-                var raw = inputEl.value.trim();
-                if (!activeThread || !raw || activeThread.isStreaming) {
+            function selectSlashCommand(threadId, commandName) {
+                setDraft(threadId, '/' + commandName + ' ');
+                composerUi.threadId = threadId;
+                composerUi.dropdown = 'slash';
+                composerUi.activeSlashIndex = 0;
+                renderState({
+                    threadId: threadId,
+                    selectionStart: getDraft(threadId).length,
+                    selectionEnd: getDraft(threadId).length
+                });
+            }
+
+            function selectFileFromDropdown(threadId, filePath, textarea) {
+                var text = getDraft(threadId);
+                var cursor = textarea ? textarea.selectionStart : text.length;
+                var before = text.substring(0, composerUi.atMentionStart);
+                var after = text.substring(cursor);
+                var nextValue = before + after;
+                setDraft(threadId, nextValue);
+                clearAtMention();
+                vscode.postMessage({ type: 'attachFile', threadId: threadId, filePath: filePath });
+                renderState({
+                    threadId: threadId,
+                    selectionStart: before.length,
+                    selectionEnd: before.length
+                });
+            }
+
+            function sendThread(threadId) {
+                var thread = getThreadById(threadId);
+                var raw = getDraft(threadId).trim();
+                if (!thread || !raw || thread.isStreaming) {
                     return;
                 }
 
@@ -1244,48 +1513,45 @@ export function getWebviewContent(
                     if (command) {
                         vscode.postMessage({
                             type: 'slashCommand',
-                            threadId: activeThread.id,
+                            threadId: thread.id,
                             command: commandName,
                             text: userText
                         });
-                        inputEl.value = '';
-                        autoResizeInput();
-                        clearSlashState();
-                        hideDropdown();
+                        setDraft(threadId, '');
+                        clearAtMention();
+                        closeComposerDropdowns();
+                        renderState({ threadId: threadId, selectionStart: 0, selectionEnd: 0 });
                         return;
                     }
                 }
 
-                vscode.postMessage({ type: 'send', threadId: activeThread.id, text: raw });
-                inputEl.value = '';
-                autoResizeInput();
-                clearSlashState();
-                hideDropdown();
+                vscode.postMessage({ type: 'send', threadId: thread.id, text: raw });
+                userScrolledUp[thread.id] = false;
+                setDraft(threadId, '');
+                clearAtMention();
+                closeComposerDropdowns();
+                renderState({ threadId: threadId, selectionStart: 0, selectionEnd: 0 });
             }
 
-            function cancelActiveThread() {
-                var activeThread = getActiveThread();
-                if (!activeThread) return;
-                vscode.postMessage({ type: 'cancel', threadId: activeThread.id });
-            }
-
-            btnSend.addEventListener('click', function() {
-                var activeThread = getActiveThread();
-                if (activeThread && activeThread.isStreaming) {
-                    cancelActiveThread();
-                    return;
+            function toggleDropdown(threadId, kind) {
+                if (composerUi.threadId === threadId && composerUi.dropdown === kind) {
+                    closeComposerDropdowns();
+                } else {
+                    composerUi.threadId = threadId;
+                    composerUi.dropdown = kind;
+                    composerUi.modelQuery = '';
+                    composerUi.activeSlashIndex = 0;
+                    composerUi.activeFileIndex = 0;
                 }
-                send();
-            });
+                renderState();
+            }
 
             btnNew.addEventListener('click', function() {
                 vscode.postMessage({ type: 'newSession' });
-                inputEl.focus();
             });
 
             btnSplit.addEventListener('click', function() {
                 vscode.postMessage({ type: 'splitThread' });
-                inputEl.focus();
             });
 
             if (btnPopout) {
@@ -1294,159 +1560,334 @@ export function getWebviewContent(
                 });
             }
 
-            btnAttach.addEventListener('click', function() {
-                var activeThread = getActiveThread();
-                if (!activeThread) return;
-                vscode.postMessage({ type: 'attach', threadId: activeThread.id });
+            function updateGridDimension(dimension) {
+                var parts = dimension.split('x');
+                var cols = parseInt(parts[0], 10) || 1;
+                var rows = parseInt(parts[1], 10) || 1;
+                paneGrid.style.setProperty('--grid-cols', cols);
+                paneGrid.style.setProperty('--grid-rows', rows);
+            }
+
+            dimensionSelect.addEventListener('change', function() {
+                currentDimension = dimensionSelect.value;
+                updateGridDimension(currentDimension);
+                vscode.postMessage({ type: 'setDimension', dimension: currentDimension });
             });
 
-            btnChatType.addEventListener('click', function(event) {
-                event.stopPropagation();
-                var open = chatTypeDropdown.classList.contains('visible');
-                closeAllSelectors();
-                if (!open) renderChatTypeDropdown();
-            });
-
-            btnModelEl.addEventListener('click', function(event) {
-                event.stopPropagation();
-                var open = modelDropdown.classList.contains('visible');
-                closeAllSelectors();
-                if (!open) renderModelDropdown();
-            });
-
-            document.addEventListener('click', function(event) {
-                if (!chatTypeDropdown.contains(event.target) && !btnChatType.contains(event.target) &&
-                    !modelDropdown.contains(event.target) && !btnModelEl.contains(event.target)) {
-                    closeAllSelectors();
-                }
-            });
-
-            inputEl.addEventListener('keydown', function(event) {
-                var fileVisible = fileDropdownEl.classList.contains('visible');
-                if (fileVisible && atMentionActive) {
-                    var fileItems = fileDropdownEl.querySelectorAll('.file-item');
-                    if (event.key === 'ArrowDown') {
-                        event.preventDefault();
-                        activeFileIndex = Math.min(activeFileIndex + 1, fileItems.length - 1);
-                        updateFileActiveItem();
-                        return;
-                    }
-                    if (event.key === 'ArrowUp') {
-                        event.preventDefault();
-                        activeFileIndex = Math.max(activeFileIndex - 1, 0);
-                        updateFileActiveItem();
-                        return;
-                    }
-                    if ((event.key === 'Enter' || event.key === 'Tab') && fileItems.length) {
-                        event.preventDefault();
-                        selectFileFromDropdown(fileItems[activeFileIndex].dataset.path);
-                        return;
-                    }
-                    if (event.key === 'Escape') {
-                        event.preventDefault();
-                        hideFileDropdown();
-                        return;
-                    }
+            paneGrid.addEventListener('click', function(event) {
+                var actionEl = event.target.closest('[data-action]');
+                var pane = event.target.closest('.pane');
+                if (pane && !actionEl) {
+                    setActiveThread(pane.getAttribute('data-thread-id'));
+                    return;
                 }
 
-                var slashVisible = slashDropdown.classList.contains('visible');
-                if (slashVisible) {
-                    var filtered = filterSlashCommands(getSlashQuery() || '');
-                    if (event.key === 'ArrowDown') {
-                        event.preventDefault();
-                        activeSlashIndex = Math.min(activeSlashIndex + 1, filtered.length - 1);
-                        updateSlashActiveItem();
-                        return;
-                    }
-                    if (event.key === 'ArrowUp') {
-                        event.preventDefault();
-                        activeSlashIndex = Math.max(activeSlashIndex - 1, 0);
-                        updateSlashActiveItem();
-                        return;
-                    }
-                    if ((event.key === 'Enter' || event.key === 'Tab') && filtered.length) {
-                        event.preventDefault();
-                        selectSlashCommand(filtered[activeSlashIndex]);
-                        return;
-                    }
-                    if (event.key === 'Escape') {
-                        event.preventDefault();
-                        hideDropdown();
-                        return;
-                    }
+                if (!actionEl) {
+                    return;
                 }
 
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                    event.preventDefault();
-                    var activeThread = getActiveThread();
-                    if (activeThread && activeThread.isStreaming) {
-                        cancelActiveThread();
-                    } else {
-                        send();
-                    }
+                var action = actionEl.getAttribute('data-action');
+                var threadId = actionEl.getAttribute('data-thread-id');
+                if (threadId) {
+                    setActiveThread(threadId);
                 }
-            });
 
-            inputEl.addEventListener('input', function() {
-                autoResizeInput();
-                checkSlashInput();
-                checkAtMention();
-                if (!inputEl.value || inputEl.value.charAt(0) !== '/') {
-                    clearSlashState();
+                if (action === 'focus') {
+                    renderState({ threadId: threadId, selectionStart: getDraft(threadId).length, selectionEnd: getDraft(threadId).length });
+                    return;
                 }
-            });
-
-            inputEl.addEventListener('click', checkAtMention);
-
-            inputEl.addEventListener('blur', function() {
-                setTimeout(function() {
-                    if (atMentionActive) {
-                        hideFileDropdown();
-                    }
-                }, 150);
-            });
-
-            inputWrapper.addEventListener('dragenter', function(event) {
-                if (!hasFileDrag(event.dataTransfer)) return;
-                dragDepth += 1;
-                event.preventDefault();
-                setDragActive(true);
-            });
-
-            inputWrapper.addEventListener('dragover', function(event) {
-                if (!hasFileDrag(event.dataTransfer)) return;
-                event.preventDefault();
-                if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-                setDragActive(true);
-            });
-
-            inputWrapper.addEventListener('dragleave', function(event) {
-                if (!hasFileDrag(event.dataTransfer)) return;
-                dragDepth = Math.max(0, dragDepth - 1);
-                if (dragDepth === 0 && !inputWrapper.contains(event.relatedTarget)) {
-                    setDragActive(false);
+                if (action === 'clear') {
+                    vscode.postMessage({ type: 'clearThread', threadId: threadId });
+                    return;
                 }
-            });
-
-            inputWrapper.addEventListener('drop', function(event) {
-                var activeThread = getActiveThread();
-                if (!activeThread || !hasFileDrag(event.dataTransfer)) return;
-                event.preventDefault();
-                dragDepth = 0;
-                setDragActive(false);
-                var filePaths = extractDroppedPaths(event.dataTransfer);
-                if (filePaths.length) {
+                if (action === 'close') {
+                    vscode.postMessage({ type: 'closeThread', threadId: threadId });
+                    return;
+                }
+                if (action === 'export') {
+                    vscode.postMessage({ type: 'exportThread', threadId: threadId });
+                    return;
+                }
+                if (action === 'attach') {
+                    vscode.postMessage({ type: 'attach', threadId: threadId });
+                    return;
+                }
+                if (action === 'send') {
+                    sendThread(threadId);
+                    return;
+                }
+                if (action === 'cancel') {
+                    vscode.postMessage({ type: 'cancel', threadId: threadId });
+                    return;
+                }
+                if (action === 'remove-attachment') {
                     vscode.postMessage({
-                        type: 'attachFiles',
-                        threadId: activeThread.id,
-                        filePaths: filePaths
+                        type: 'removeAttachment',
+                        threadId: threadId,
+                        index: Number(actionEl.getAttribute('data-index'))
+                    });
+                    return;
+                }
+                if (action === 'toggle-chat-type') {
+                    toggleDropdown(threadId, 'chatType');
+                    return;
+                }
+                if (action === 'toggle-model') {
+                    toggleDropdown(threadId, 'model');
+                    return;
+                }
+                if (action === 'select-chat-type') {
+                    closeComposerDropdowns();
+                    vscode.postMessage({
+                        type: 'setChatType',
+                        threadId: threadId,
+                        chatType: actionEl.getAttribute('data-value')
+                    });
+                    return;
+                }
+                if (action === 'select-model') {
+                    closeComposerDropdowns();
+                    vscode.postMessage({
+                        type: 'setModel',
+                        threadId: threadId,
+                        model: actionEl.getAttribute('data-value')
+                    });
+                    return;
+                }
+                if (action === 'pick-slash') {
+                    selectSlashCommand(threadId, actionEl.getAttribute('data-command'));
+                    return;
+                }
+                if (action === 'pick-file') {
+                    var textarea = paneGrid.querySelector('.composer-input[data-thread-id="' + threadId + '"]');
+                    selectFileFromDropdown(threadId, actionEl.getAttribute('data-path'), textarea);
+                    return;
+                }
+                if (action === 'use-recommendation') {
+                    var command = actionEl.getAttribute('data-command') || '';
+                    setDraft(threadId, command + ' ');
+                    composerUi.threadId = threadId;
+                    composerUi.dropdown = '';
+                    renderState({
+                        threadId: threadId,
+                        selectionStart: getDraft(threadId).length,
+                        selectionEnd: getDraft(threadId).length
                     });
                 }
             });
 
+            paneGrid.addEventListener('input', function(event) {
+                var textarea = event.target.closest('.composer-input');
+                if (textarea) {
+                    var threadId = textarea.getAttribute('data-thread-id');
+                    setDraft(threadId, textarea.value);
+                    composerUi.threadId = threadId;
+                    updateSlashState(threadId);
+                    checkAtMention(threadId, textarea);
+                    renderState({
+                        threadId: threadId,
+                        selectionStart: textarea.selectionStart,
+                        selectionEnd: textarea.selectionEnd
+                    });
+                    return;
+                }
+
+                var search = event.target.closest('.selector-search');
+                if (search) {
+                    composerUi.threadId = search.getAttribute('data-thread-id');
+                    composerUi.dropdown = 'model';
+                    composerUi.modelQuery = search.value;
+                    renderState({
+                        threadId: composerUi.threadId,
+                        selectionStart: search.selectionStart,
+                        selectionEnd: search.selectionEnd
+                    });
+                }
+            });
+
+            paneGrid.addEventListener('keydown', function(event) {
+                var textarea = event.target.closest('.composer-input');
+                if (!textarea) {
+                    return;
+                }
+
+                var threadId = textarea.getAttribute('data-thread-id');
+                var fileVisible = composerUi.threadId === threadId && composerUi.dropdown === 'file' && composerUi.fileResults.length > 0;
+                if (fileVisible) {
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        composerUi.activeFileIndex = Math.min(composerUi.activeFileIndex + 1, composerUi.fileResults.length - 1);
+                        renderState({
+                            threadId: threadId,
+                            selectionStart: textarea.selectionStart,
+                            selectionEnd: textarea.selectionEnd
+                        });
+                        return;
+                    }
+                    if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        composerUi.activeFileIndex = Math.max(composerUi.activeFileIndex - 1, 0);
+                        renderState({
+                            threadId: threadId,
+                            selectionStart: textarea.selectionStart,
+                            selectionEnd: textarea.selectionEnd
+                        });
+                        return;
+                    }
+                    if ((event.key === 'Enter' || event.key === 'Tab') && composerUi.fileResults.length) {
+                        event.preventDefault();
+                        selectFileFromDropdown(threadId, composerUi.fileResults[composerUi.activeFileIndex].path, textarea);
+                        return;
+                    }
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        clearAtMention();
+                        renderState({
+                            threadId: threadId,
+                            selectionStart: textarea.selectionStart,
+                            selectionEnd: textarea.selectionEnd
+                        });
+                        return;
+                    }
+                }
+
+                var slashCommandsForThread = getActiveSlashCommands(threadId);
+                if (slashCommandsForThread.length) {
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        composerUi.activeSlashIndex = Math.min(composerUi.activeSlashIndex + 1, slashCommandsForThread.length - 1);
+                        renderState({
+                            threadId: threadId,
+                            selectionStart: textarea.selectionStart,
+                            selectionEnd: textarea.selectionEnd
+                        });
+                        return;
+                    }
+                    if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        composerUi.activeSlashIndex = Math.max(composerUi.activeSlashIndex - 1, 0);
+                        renderState({
+                            threadId: threadId,
+                            selectionStart: textarea.selectionStart,
+                            selectionEnd: textarea.selectionEnd
+                        });
+                        return;
+                    }
+                    if ((event.key === 'Enter' || event.key === 'Tab') && slashCommandsForThread.length) {
+                        event.preventDefault();
+                        selectSlashCommand(threadId, slashCommandsForThread[composerUi.activeSlashIndex].name);
+                        return;
+                    }
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        closeComposerDropdowns();
+                        renderState({
+                            threadId: threadId,
+                            selectionStart: textarea.selectionStart,
+                            selectionEnd: textarea.selectionEnd
+                        });
+                        return;
+                    }
+                }
+
+                if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+                    if (composerUi.dropdown === 'file' && composerUi.fileResults.length) {
+                        event.preventDefault();
+                        selectFileFromDropdown(threadId, composerUi.fileResults[composerUi.activeFileIndex].path, textarea);
+                        return;
+                    }
+                    if (composerUi.dropdown === 'slash' && slashCommandsForThread.length) {
+                        event.preventDefault();
+                        selectSlashCommand(threadId, slashCommandsForThread[composerUi.activeSlashIndex].name);
+                        return;
+                    }
+                    event.preventDefault();
+                    var thread = getThreadById(threadId);
+                    if (thread && thread.isStreaming) {
+                        vscode.postMessage({ type: 'cancel', threadId: threadId });
+                    } else {
+                        sendThread(threadId);
+                    }
+                    return;
+                }
+            });
+
+            paneGrid.addEventListener('focusin', function(event) {
+                var textarea = event.target.closest('.composer-input');
+                if (textarea) {
+                    setActiveThread(textarea.getAttribute('data-thread-id'));
+                }
+            });
+
+            paneGrid.addEventListener('dragenter', function(event) {
+                var shell = event.target.closest('.composer-shell');
+                if (!shell || !hasFileDrag(event.dataTransfer)) {
+                    return;
+                }
+                event.preventDefault();
+                composerUi.dragThreadId = shell.getAttribute('data-thread-id');
+                renderState();
+            });
+
+            paneGrid.addEventListener('dragover', function(event) {
+                var shell = event.target.closest('.composer-shell');
+                if (!shell || !hasFileDrag(event.dataTransfer)) {
+                    return;
+                }
+                event.preventDefault();
+                if (event.dataTransfer) {
+                    event.dataTransfer.dropEffect = 'copy';
+                }
+                var tid = shell.getAttribute('data-thread-id');
+                if (composerUi.dragThreadId !== tid) {
+                    composerUi.dragThreadId = tid;
+                    renderState();
+                }
+            });
+
+            paneGrid.addEventListener('dragleave', function(event) {
+                var shell = event.target.closest('.composer-shell');
+                if (!shell || !hasFileDrag(event.dataTransfer)) {
+                    return;
+                }
+                if (!shell.contains(event.relatedTarget)) {
+                    composerUi.dragThreadId = '';
+                    renderState();
+                }
+            });
+
+            paneGrid.addEventListener('drop', function(event) {
+                var shell = event.target.closest('.composer-shell');
+                if (!shell || !hasFileDrag(event.dataTransfer)) {
+                    return;
+                }
+                event.preventDefault();
+                var threadId = shell.getAttribute('data-thread-id');
+                composerUi.dragThreadId = '';
+                var filePaths = extractDroppedPaths(event.dataTransfer);
+                if (filePaths.length) {
+                    vscode.postMessage({
+                        type: 'attachFiles',
+                        threadId: threadId,
+                        filePaths: filePaths
+                    });
+                }
+                renderState();
+            });
+
+            document.addEventListener('click', function(event) {
+                if (!event.target.closest('.composer-shell')) {
+                    closeComposerDropdowns();
+                    clearAtMention();
+                    renderState(captureComposerFocus());
+                }
+            });
+
             window.addEventListener('dragend', function() {
-                dragDepth = 0;
-                setDragActive(false);
+                if (composerUi.dragThreadId) {
+                    composerUi.dragThreadId = '';
+                    renderState();
+                }
             });
 
             window.addEventListener('message', function(event) {
@@ -1457,35 +1898,103 @@ export function getWebviewContent(
                 }
                 if (message.type === 'recommendations') {
                     recommendations = message.items || [];
-                    renderState();
+                    renderState(captureComposerFocus());
                     return;
                 }
                 if (message.type === 'fileSearchResults') {
-                    renderFileResults(message.files || []);
+                    composerUi.fileResults = message.files || [];
+                    renderState(captureComposerFocus());
                     return;
                 }
                 if (message.type === 'onboardingDone') {
                     return;
                 }
                 if (message.type === 'state') {
+                    var focus = captureComposerFocus();
                     state.activeThreadId = message.activeThreadId || '';
                     state.visibleThreadIds = message.visibleThreadIds || [];
                     state.threads = message.threads || [];
                     availableModels = message.models || [];
-                    renderState();
-
-                    var activeThread = getActiveThread();
-                    if (activeThread && activeThread.isStreaming) {
-                        btnSend.classList.add('streaming');
-                        btnSend.innerHTML = '&#x25A0;';
-                        btnSend.title = 'Stop';
-                    } else {
-                        btnSend.classList.remove('streaming');
-                        btnSend.innerHTML = '&#x2191;';
-                        btnSend.title = 'Send';
+                    if (message.dimension) {
+                        currentDimension = message.dimension;
+                        dimensionSelect.value = currentDimension;
+                        updateGridDimension(currentDimension);
                     }
+                    renderState(focus);
                 }
             });
+
+            function hasFileDrag(dataTransfer) {
+                if (!dataTransfer || !dataTransfer.types) {
+                    return false;
+                }
+                var types = dataTransfer.types;
+                var hasType = typeof types.indexOf === 'function'
+                    ? function(t) { return types.indexOf(t) !== -1; }
+                    : function(t) { return Array.prototype.indexOf.call(types, t) !== -1; };
+                return hasType('Files') || hasType('text/uri-list');
+            }
+
+            function extractDroppedPaths(dataTransfer) {
+                var paths = [];
+
+                function pushUnique(p) {
+                    if (p && paths.indexOf(p) === -1) {
+                        paths.push(p);
+                    }
+                }
+
+                // 1. Parse text/uri-list (VS Code explorer drags provide file:// URIs here)
+                try {
+                    var uriList = dataTransfer.getData('text/uri-list');
+                    if (uriList) {
+                        var lines = uriList.split(/\\r?\\n/);
+                        for (var u = 0; u < lines.length; u++) {
+                            var line = lines[u].trim();
+                            if (!line || line.charAt(0) === '#') { continue; }
+                            if (line.indexOf('file://') === 0) {
+                                // Decode the file URI to a local path
+                                var decoded = decodeURIComponent(line.replace(/^file:\\/\\//, ''));
+                                // On Windows, strip leading slash from /C:/...
+                                if (/^\\/[A-Za-z]:/.test(decoded)) {
+                                    decoded = decoded.substring(1);
+                                }
+                                pushUnique(decoded);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[OpenClaw DnD] Could not read text/uri-list:', e);
+                }
+
+                // 2. Try File objects (File.path works in Electron but is empty in webview sandbox)
+                if (!paths.length && dataTransfer.items) {
+                    for (var i = 0; i < dataTransfer.items.length; i++) {
+                        var item = dataTransfer.items[i];
+                        if (item.kind === 'file') {
+                            var file = item.getAsFile();
+                            if (file && file.path) {
+                                pushUnique(file.path);
+                            }
+                        }
+                    }
+                }
+
+                if (!paths.length && dataTransfer.files) {
+                    for (var j = 0; j < dataTransfer.files.length; j++) {
+                        var f = dataTransfer.files[j];
+                        if (f && f.path) {
+                            pushUnique(f.path);
+                        }
+                    }
+                }
+
+                if (!paths.length) {
+                    console.warn('[OpenClaw DnD] Could not extract file paths from drop. dataTransfer.types:', Array.from(dataTransfer.types));
+                }
+
+                return paths;
+            }
 
             vscode.postMessage({ type: 'requestRecommendations' });
         })();

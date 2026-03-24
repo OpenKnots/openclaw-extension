@@ -3,14 +3,45 @@ import { spawn, ChildProcess } from 'child_process';
 
 const log = vscode.window.createOutputChannel('OpenClaw Agent', { log: true });
 
+export type UsageInfo = {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+};
+
 export type ChatEvent =
     | { type: 'text'; text: string }
-    | { type: 'toolCall'; title: string; status: string }
+    | { type: 'toolCall'; title: string; status: string; details: string }
+    | { type: 'usage'; usage: UsageInfo }
     | { type: 'done' }
     | { type: 'error'; message: string };
 
 export class ChatService {
     private activeProcess: ChildProcess | null = null;
+
+    private static readonly MODEL_SOURCE_MAP: Record<string, string> = {
+        codex: 'API',
+        claude: 'API',
+        'gpt-4o': 'API',
+        gemini: 'API',
+        ollama: 'Local',
+        opencode: 'Gateway',
+    };
+
+    static getSourceForModel(model: string): string {
+        const config = vscode.workspace.getConfiguration('openclaw');
+        const override = config.get<string>('chat.source');
+        if (override) {
+            return override;
+        }
+        const lower = model.toLowerCase();
+        for (const [key, source] of Object.entries(ChatService.MODEL_SOURCE_MAP)) {
+            if (lower.includes(key)) {
+                return source;
+            }
+        }
+        return 'API';
+    }
 
     private static readonly CHAT_TYPE_PREFIXES: Record<string, string> = {
         code: 'You are a coding assistant. Focus on writing and explaining code.\n\n',
@@ -28,7 +59,8 @@ export class ChatService {
         this.abort();
 
         const config = vscode.workspace.getConfiguration('openclaw');
-        const permissions = config.get<string>('chat.permissions', 'approve-reads');
+        const configuredPermissions = config.get<string>('chat.permissions', 'approve-reads');
+        const permissions = ChatService.getPermissionsForChatType(chatType, configuredPermissions);
 
         const prefix = ChatService.CHAT_TYPE_PREFIXES[chatType] ?? '';
         const fullPrompt = prefix + prompt;
@@ -116,6 +148,15 @@ export class ChatService {
         return this.activeProcess !== null;
     }
 
+    static getPermissionsForChatType(chatType: string, configuredPermissions: string): string {
+        // Plain chat mode is intentionally read-only even if the global chat
+        // permission setting is more permissive.
+        if (chatType === 'chat') {
+            return 'approve-reads';
+        }
+        return configuredPermissions;
+    }
+
     private buildArgs(agent: string, permissions: string, prompt: string): string[] {
         const args: string[] = [];
 
@@ -181,12 +222,22 @@ export class ChatService {
         if (eventType === 'tool_call' || eventType === 'tool_use') {
             const title = (obj.title ?? obj.name ?? obj.tool ?? 'tool') as string;
             const status = (obj.status ?? 'running') as string;
-            return { type: 'toolCall', title, status };
+            return {
+                type: 'toolCall',
+                title,
+                status,
+                details: this.stringifyToolEvent(obj)
+            };
         }
 
         if (eventType === 'tool_result') {
             const title = (obj.title ?? obj.name ?? obj.tool ?? 'tool') as string;
-            return { type: 'toolCall', title, status: 'done' };
+            return {
+                type: 'toolCall',
+                title,
+                status: 'done',
+                details: this.stringifyToolEvent(obj)
+            };
         }
 
         if (eventType === 'error') {
@@ -204,11 +255,36 @@ export class ChatService {
             }
         }
 
+        // Parse usage/token metadata from various event shapes
+        if (eventType === 'usage' || eventType === 'message_stop' || obj.usage) {
+            const usage = (obj.usage ?? obj) as Record<string, unknown>;
+            const promptTokens = Number(usage.input_tokens ?? usage.prompt_tokens ?? usage.promptTokens ?? 0);
+            const completionTokens = Number(usage.output_tokens ?? usage.completion_tokens ?? usage.completionTokens ?? 0);
+            if (promptTokens > 0 || completionTokens > 0) {
+                return {
+                    type: 'usage',
+                    usage: {
+                        promptTokens,
+                        completionTokens,
+                        totalTokens: promptTokens + completionTokens
+                    }
+                };
+            }
+        }
+
         if (typeof obj.text === 'string' && obj.text) {
             return { type: 'text', text: obj.text };
         }
 
         return null;
+    }
+
+    private stringifyToolEvent(obj: Record<string, unknown>): string {
+        try {
+            return JSON.stringify(obj, null, 2);
+        } catch {
+            return '[unserializable tool event]';
+        }
     }
 
     dispose(): void {

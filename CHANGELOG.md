@@ -6,16 +6,41 @@ Semantic Versioning.
 
 ## Unreleased
 
+## 0.2.0
+
+### Added
+
+- Add threading support with per-thread composers, state tracking, and bento-grid layout (`1x1`, `2x1`, `2x2`, etc.) controlled by a configurable dimension setting.
+- Add token usage tracking with a context-window progress bar, model-aware context limits, and per-thread usage metadata.
+- Add model source detection (API, Local, Gateway) with a configurable `openclaw.chat.source` override and color-coded source pills in the pane header.
+- Add thread status indicators (idle, running, complete, error, cancelled) with distinct styling per state.
+- Add thread export to Markdown or JSON via the `exportThread` command.
+- Add dynamic thread subject renaming based on slash commands, attached files, and conversation content.
+- Add grouped tool-call messages that collapse consecutive tool events into a single expandable entry with JSON details.
+- Add per-pane composers with independent completion state and recommendation chips scoped to each thread.
+- Add unit tests for `ChatService.getPermissionsForChatType` and `getWebviewContent` using Vitest.
+- Add a project roadmap (`ROADMAP.md`) covering planned features: voice chat, enhanced planning, DnD threads, bento threads, subagent selection, ephemeral messages, persistent memory, inline editing, terminal integration, git workflows, and more.
 - Add slash commands (`/explain`, `/fix`, `/review`, `/test`, `/refactor`, `/doc`, `/commit`, `/harden`, `/search`) with autocomplete dropdown and keyboard navigation.
-- Inject editor context automatically per command: active selection, file content, diagnostics, git diff, or staged changes.
-- Replace the static onboarding card with context-aware recommendation chips that update as the active editor, selection, and diagnostics change.
-- Build augmented prompts on the extension side so `acpx` receives rich, instruction-wrapped requests without backend changes.
-- Add a multi-step onboarding carousel with three slides: "Chat with your codebase", "Security-first hardening", and key setup tips. Includes smooth transitions, dot indicators, and Back/Next navigation.
-- Persist onboarding completion in `globalState` so the carousel only shows on first use.
-- Add Cursor-style `@`-mention file attachment: type `@` in the chat input to search and attach workspace files as context, with autocomplete dropdown, keyboard navigation, and mouse support.
-- Add in-chat dropdown selectors for chat type (Chat, Code, Review, Plan) and model/agent, replacing settings-only configuration with direct UI controls in the input area.
-- Add `openclaw.chat.models` setting to customize the list of available models shown in the model picker.
-- Prepend chat-type-specific system instructions (code, review, plan) to prompts so `acpx` receives role-appropriate context.
+- Add context-aware recommendation chips that replace the static onboarding card and update based on the active editor, selection, and diagnostics.
+- Add a multi-step onboarding carousel with three slides: "Chat with your codebase", "Security-first hardening", and key setup tips, with smooth transitions, dot indicators, and Back/Next navigation.
+- Add Cursor-style `@`-mention file attachment so typing `@` in the chat input searches and attaches workspace files, with autocomplete dropdown, keyboard navigation, and mouse support.
+- Add in-chat dropdown selectors for chat type (Chat, Code, Review, Plan) and model/agent, replacing settings-only configuration with direct UI controls in the composer.
+- Add the `openclaw.chat.models` setting to customize which models appear in the model picker.
+
+### Changed
+
+- Refactor pane grid to use CSS custom properties (`--grid-cols`, `--grid-rows`) for the bento layout instead of `auto-fit`, enabling explicit dimension control.
+- Upgrade pane styling with pill-shaped metadata badges, improved spacing, and a dedicated context-bar progress indicator.
+- Refactor tool-call message model from single entries to grouped `entries` arrays, reducing message noise during multi-tool sequences.
+- Move composer and recommendation rendering into per-thread functions (`renderComposer`, `renderComposerRecommendations`) for the threading model.
+- Inject command-specific editor context automatically into prompts, including active selection, file content, diagnostics, git diff, and staged changes.
+- Build augmented prompts in the extension so `acpx` receives richer, instruction-wrapped requests without backend changes.
+- Prepend chat-type-specific system instructions for Code, Review, and Plan modes so `acpx` receives role-appropriate context.
+- Persist onboarding completion in `globalState` so the carousel only appears on first use.
+- Keep plain Chat mode read-only by forcing `approve-reads` permissions even when the global chat permission setting is more permissive.
+
+### Thanks
+
 - Thanks @BunsDev <3
 
 ## 0.1.0

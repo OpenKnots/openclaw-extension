@@ -149,6 +149,23 @@
             "ollama"
           ],
           "description": "Available models shown in the chat model picker"
+        },
+        "openclaw.chat.dynamicSubject": {
+          "type": "boolean",
+          "default": true,
+          "description": "Dynamically update thread subjects based on chat context (slash commands, file names, topics)"
+        },
+        "openclaw.chat.dimension": {
+          "type": "string",
+          "enum": [
+            "1x1",
+            "2x2",
+            "2x3",
+            "3x3",
+            "4x4"
+          ],
+          "default": "1x1",
+          "description": "Grid dimension for chat threads (e.g. '2x2' creates a 2x2 grid with 4 visible threads)"
         }
       }
     }
@@ -178,7 +195,9 @@
   },
   "dependencies": {
     "@create-markdown/core": "^2.0.0",
-    "@create-markdown/preview": "^2.0.0"
+    "@create-markdown/preview": "^2.0.0",
+    "build": "^0.1.4",
+    "pnpm": "^10.32.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

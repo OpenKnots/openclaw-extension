@@ -22,7 +22,7 @@ export function getWebviewContent(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'none'; img-src ${cspSource}; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+          content="default-src 'none'; img-src ${cspSource}; font-src ${cspSource}; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <style nonce="${nonce}">
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -344,13 +344,18 @@ export function getWebviewContent(
             color: var(--vscode-foreground);
         }
 
-        .message-assistant .file-link {
+        .file-link {
             color: var(--vscode-textLink-foreground, #3794ff);
             cursor: pointer;
             text-decoration: none;
             border-bottom: 1px solid transparent;
         }
-        .message-assistant .file-link:hover {
+        .file-link:hover {
+            border-bottom-color: var(--vscode-textLink-foreground, #3794ff);
+        }
+        .file-link:focus-visible {
+            outline: 1px solid var(--vscode-focusBorder, #007acc);
+            outline-offset: 2px;
             border-bottom-color: var(--vscode-textLink-foreground, #3794ff);
         }
 
@@ -671,14 +676,37 @@ export function getWebviewContent(
         }
 
         .composer-recommendations {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            padding: 0 10px 8px;
+            padding: 0 10px 4px;
         }
 
         .composer-recommendations.hidden {
             display: none;
+        }
+
+        .rec-toggle {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground, rgba(255, 255, 255, 0.34));
+            padding: 2px 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.15s;
+        }
+
+        .rec-toggle:hover {
+            color: var(--vscode-foreground, rgba(255, 255, 255, 0.6));
+        }
+
+        .rec-toggle .rec-caret {
+            font-size: 8px;
+            transition: transform 0.15s;
+        }
+
+        .rec-toggle.open .rec-caret {
+            transform: rotate(90deg);
         }
 
         .att-pill {
@@ -946,23 +974,34 @@ export function getWebviewContent(
         }
 
         .recommendations {
+            display: none;
+            flex-direction: column;
+            gap: 0;
+            padding: 2px 0 0;
+        }
+
+        .recommendations.open {
             display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
         }
 
         .rec-chip {
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 999px;
-            padding: 6px 10px;
+            border: none;
+            background: transparent;
+            border-radius: 3px;
+            padding: 2px 6px;
             cursor: pointer;
             font-size: 11px;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--vscode-descriptionForeground, rgba(255, 255, 255, 0.38));
+            transition: color 0.12s, background 0.12s;
         }
 
         .rec-chip:hover {
-            border-color: rgba(255, 255, 255, 0.14);
-            background: rgba(255, 255, 255, 0.08);
+            color: var(--vscode-foreground, rgba(255, 255, 255, 0.7));
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .empty-detail {
@@ -1027,6 +1066,7 @@ export function getWebviewContent(
 
         .dimension-select {
             height: 24px;
+            min-width: 56px;
             padding: 0 6px;
             font-size: 11px;
             border-radius: 6px;
@@ -1061,6 +1101,7 @@ export function getWebviewContent(
             </div>
             <div class="header-actions">
                 <select class="dimension-select" id="dimensionSelect" title="Grid dimension">
+                    <option value="1x1">1x1</option>
                 </select>
                 <button class="icon-btn" id="btn-flip" title="Flip layout orientation">&#x21C4;</button>
                 <button class="icon-btn" id="btn-new" title="New thread">+</button>
@@ -1087,8 +1128,8 @@ export function getWebviewContent(
                 box.className = 'openclaw-crash';
                 box.open = true;
                 box.innerHTML =
-                    '<summary>' + label + '</summary>' +
-                    '<pre>' + msg.replace(/</g, '&lt;') + '</pre>' +
+                    '<summary>' + escapeHtml(label) + '</summary>' +
+                    '<pre>' + linkifyFilePaths(escapeHtml(msg)) + '</pre>' +
                     '<div style="margin-top:6px;opacity:0.6;font-size:11px">' +
                         'State: threads=' + (typeof state !== 'undefined' ? (state.threads || []).length : '?') +
                         ', dim=' + (typeof currentDimension !== 'undefined' ? currentDimension : '?') +
@@ -1156,6 +1197,10 @@ export function getWebviewContent(
             var collapseCompleted = true;
             var collapseOverrides = Object.create(null); // threadId -> true/false manual override
 
+            function isValidDimension(value) {
+                return /^\\d+x\\d+$/.test(value || '');
+            }
+
             function getThreadById(threadId) {
                 for (var i = 0; i < state.threads.length; i++) {
                     if (state.threads[i].id === threadId) {
@@ -1188,14 +1233,80 @@ export function getWebviewContent(
             }
 
             function linkifyFilePaths(html) {
-                // Match file paths inside <code> tags: e.g. <code>src/foo/bar.ts</code> or <code>src/foo/bar.ts:42</code>
-                var filePathRegex = /(<code>)((?:[a-zA-Z]:[\\/]|\/|\.{0,2}\/)?(?:[\w.@-]+\/)+[\w.@-]+\.[a-zA-Z]{1,10}(?::(\d+))?)(<\/code>)/g;
-                return html.replace(filePathRegex, function(_match, openTag, fullText, lineNum, closeTag) {
-                    var filePath = lineNum ? fullText.slice(0, fullText.lastIndexOf(':')) : fullText;
-                    return openTag + '<span class="file-link" data-file-path="' + escapeAttr(filePath) + '"' +
-                        (lineNum ? ' data-line="' + escapeAttr(lineNum) + '"' : '') +
-                        '>' + escapeHtml(fullText) + '</span>' + closeTag;
+                if (!html || (html.indexOf('/') === -1 && html.indexOf('\\\\') === -1)) {
+                    return html || '';
+                }
+
+                var template = document.createElement('template');
+                template.innerHTML = html;
+
+                var filePathRegex = /((?:[a-zA-Z]:[\\\\/]|\\/|\\.{1,2}[\\\\/])?(?:[\\w .@()-]+[\\\\/])+[\\w .@()-]+\\.[a-zA-Z0-9]{1,10}(?::(\\d+)(?::\\d+)?)?)/g;
+                var walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+                var textNodes = [];
+
+                while (walker.nextNode()) {
+                    var textNode = walker.currentNode;
+                    var parent = textNode.parentElement;
+                    var value = textNode.nodeValue || '';
+                    if (!parent || !value) {
+                        continue;
+                    }
+                    if (parent.closest('a, .file-link, script, style')) {
+                        continue;
+                    }
+                    if (value.indexOf('/') === -1 && value.indexOf('\\\\') === -1) {
+                        continue;
+                    }
+                    textNodes.push(textNode);
+                }
+
+                textNodes.forEach(function(textNode) {
+                    var text = textNode.nodeValue || '';
+                    filePathRegex.lastIndex = 0;
+                    if (!filePathRegex.test(text)) {
+                        return;
+                    }
+
+                    var frag = document.createDocumentFragment();
+                    var lastIndex = 0;
+                    var match;
+                    filePathRegex.lastIndex = 0;
+
+                    while ((match = filePathRegex.exec(text))) {
+                        var fullText = match[1];
+                        var lineNum = match[2] || '';
+                        var filePath = lineNum
+                            ? fullText.slice(0, fullText.lastIndexOf(':' + lineNum))
+                            : fullText;
+
+                        if (match.index > lastIndex) {
+                            frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+                        }
+
+                        var link = document.createElement('span');
+                        link.className = 'file-link';
+                        link.setAttribute('data-file-path', filePath);
+                        if (lineNum) {
+                            link.setAttribute('data-line', lineNum);
+                        }
+                        link.setAttribute('role', 'link');
+                        link.setAttribute('tabindex', '0');
+                        link.textContent = fullText;
+                        frag.appendChild(link);
+
+                        lastIndex = match.index + fullText.length;
+                    }
+
+                    if (lastIndex < text.length) {
+                        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+                    }
+
+                    if (textNode.parentNode) {
+                        textNode.parentNode.replaceChild(frag, textNode);
+                    }
                 });
+
+                return template.innerHTML;
             }
 
             function autoResizeTextarea(textarea) {
@@ -1270,6 +1381,48 @@ export function getWebviewContent(
                 return Math.ceil(text.length / 4);
             }
 
+            function getThreadSpaceUsage(thread) {
+                if (!thread) {
+                    return 0;
+                }
+
+                var estimatedTokens = 0;
+                var messages = Array.isArray(thread.messages) ? thread.messages : [];
+                for (var i = 0; i < messages.length; i++) {
+                    var message = messages[i];
+                    if (!message || message.role === 'tool') {
+                        continue;
+                    }
+                    estimatedTokens += estimateTokens(message.content || '');
+                }
+
+                estimatedTokens += estimateTokens(thread.pendingAssistantText || '');
+                return Math.max(thread.contextTokens || 0, estimatedTokens);
+            }
+
+            function updatePaneContextUsage(paneEl, thread) {
+                if (!paneEl || !thread) {
+                    return;
+                }
+
+                var ctxInfo = formatContextGauge(getThreadSpaceUsage(thread), thread.contextMax || 128000);
+                var fill = paneEl.querySelector('.context-bar-fill');
+                if (fill) {
+                    fill.className = 'context-bar-fill' + (ctxInfo.level ? ' ' + ctxInfo.level : '');
+                    fill.style.width = ctxInfo.pct + '%';
+                }
+
+                var label = paneEl.querySelector('.context-label');
+                if (label) {
+                    label.textContent = ctxInfo.label;
+                }
+
+                var pill = paneEl.querySelector('.pane-context');
+                if (pill) {
+                    pill.setAttribute('title', 'Context: ' + ctxInfo.label);
+                }
+            }
+
             function getToolGroupStatus(entries) {
                 return entries.some(function(entry) {
                     return entry.status !== 'done';
@@ -1307,7 +1460,7 @@ export function getWebviewContent(
                             '<span class="message-tool-entry-title">' + escapeHtml(entry.title || 'tool') + '</span>' +
                             '<span class="message-tool-entry-status">' + escapeHtml(entry.status || '') + '</span>' +
                         '</div>' +
-                        '<pre class="message-tool-details">' + escapeHtml(entry.details || '') + '</pre>';
+                        '<pre class="message-tool-details">' + linkifyFilePaths(escapeHtml(entry.details || '')) + '</pre>';
                     toolBody.appendChild(item);
                 });
 
@@ -1358,8 +1511,9 @@ export function getWebviewContent(
             function renderSlashDropdown(threadId) {
                 var commands = getActiveSlashCommands(threadId);
                 var visible = commands.length > 0;
+                var activeIndex = Math.max(0, Math.min(composerUi.activeSlashIndex, commands.length - 1));
                 var html = commands.map(function(command, index) {
-                    return '<div class="slash-item' + (index === composerUi.activeSlashIndex ? ' active' : '') + '"' +
+                    return '<div class="slash-item' + (index === activeIndex ? ' active' : '') + '"' +
                         ' data-action="pick-slash" data-thread-id="' + threadId + '"' +
                         ' data-command="' + escapeAttr(command.name) + '">' +
                         '<div>' + escapeHtml(command.icon) + '</div>' +
@@ -1376,8 +1530,9 @@ export function getWebviewContent(
                 var visible = composerUi.threadId === threadId &&
                     composerUi.dropdown === 'file' &&
                     composerUi.fileResults.length > 0;
+                var activeIndex = Math.max(0, Math.min(composerUi.activeFileIndex, composerUi.fileResults.length - 1));
                 var html = composerUi.fileResults.map(function(file, index) {
-                    return '<div class="file-item' + (index === composerUi.activeFileIndex ? ' active' : '') + '"' +
+                    return '<div class="file-item' + (index === activeIndex ? ' active' : '') + '"' +
                         ' data-action="pick-file" data-thread-id="' + threadId + '"' +
                         ' data-path="' + escapeAttr(file.path) + '">' +
                         '<span class="file-item-name">' + escapeHtml(file.name) + '</span>' +
@@ -1511,6 +1666,8 @@ export function getWebviewContent(
                 return pills + summary;
             }
 
+            var recOpen = Object.create(null);
+
             function renderComposerRecommendations(thread) {
                 var showRecommendations = Boolean(
                     thread &&
@@ -1523,14 +1680,20 @@ export function getWebviewContent(
                     return '<div class="composer-recommendations hidden"></div>';
                 }
 
-                return '<div class="composer-recommendations"><div class="recommendations">' +
-                    recommendations.map(function(rec) {
-                        return '<button class="rec-chip" data-action="use-recommendation"' +
-                            ' data-thread-id="' + thread.id + '" data-command="' + escapeAttr(rec.command) + '">' +
-                            escapeHtml(rec.icon + ' ' + rec.label) +
-                        '</button>';
-                    }).join('') +
-                '</div></div>';
+                var isOpen = !!recOpen[thread.id];
+                return '<div class="composer-recommendations">' +
+                    '<button class="rec-toggle' + (isOpen ? ' open' : '') + '" data-action="toggle-recs" data-thread-id="' + thread.id + '">' +
+                        '<span class="rec-caret">&#x25B6;</span> suggestions' +
+                    '</button>' +
+                    '<div class="recommendations' + (isOpen ? ' open' : '') + '">' +
+                        recommendations.map(function(rec) {
+                            return '<button class="rec-chip" data-action="use-recommendation"' +
+                                ' data-thread-id="' + thread.id + '" data-command="' + escapeAttr(rec.command) + '">' +
+                                escapeHtml(rec.icon + ' ' + rec.label) +
+                            '</button>';
+                        }).join('') +
+                    '</div>' +
+                '</div>';
             }
 
             function renderComposer(thread) {
@@ -1630,7 +1793,7 @@ export function getWebviewContent(
                 pane.dataset.threadId = thread.id;
 
                 var sourceClass = (thread.source || 'API').toLowerCase().replace(/[^a-z]/g, '');
-                var ctxInfo = formatContextGauge(thread.contextTokens || 0, thread.contextMax || 128000);
+                var ctxInfo = formatContextGauge(getThreadSpaceUsage(thread), thread.contextMax || 128000);
 
                 pane.innerHTML =
                     '<div class="pane-header">' +
@@ -1661,7 +1824,9 @@ export function getWebviewContent(
                                 : '') +
                             '<button class="pane-btn" data-action="export" data-thread-id="' + thread.id + '">Export</button>' +
                             '<button class="pane-btn" data-action="clear" data-thread-id="' + thread.id + '">Clear</button>' +
-                            '<button class="pane-btn" data-action="close" data-thread-id="' + thread.id + '">Close</button>' +
+                            (state.threads.length > 1
+                                ? '<button class="pane-btn" data-action="close" data-thread-id="' + thread.id + '">Close</button>'
+                                : '') +
                         '</div>' +
                     '</div>';
 
@@ -1687,7 +1852,7 @@ export function getWebviewContent(
                             node.innerHTML = linkifyFilePaths(message.html || escapeHtml(message.content || ''));
                         } else if (message.role === 'error') {
                             node.className = 'message message-error';
-                            node.textContent = message.content || '';
+                            node.innerHTML = linkifyFilePaths(escapeHtml(message.content || ''));
                         } else {
                             node.className = 'message message-user';
                             node.textContent = message.content || '';
@@ -1699,7 +1864,7 @@ export function getWebviewContent(
                         var pending = document.createElement('div');
                         pending.className = 'message message-assistant message-pending';
                         pending.setAttribute('data-thread-id', thread.id);
-                        pending.textContent = thread.pendingAssistantText;
+                        pending.innerHTML = linkifyFilePaths(escapeHtml(thread.pendingAssistantText));
                         body.appendChild(pending);
                     }
                 }
@@ -1806,6 +1971,41 @@ export function getWebviewContent(
                     } catch (e) {
                         console.warn('[OpenClaw] focus restore failed:', e);
                     }
+                }
+
+                try {
+                    scrollActiveComposerOptionIntoView();
+                } catch (e) {
+                    console.warn('[OpenClaw] dropdown scroll sync failed:', e);
+                }
+            }
+
+            function scrollActiveComposerOptionIntoView() {
+                if (!composerUi.threadId || !composerUi.dropdown) {
+                    return;
+                }
+
+                var shell = paneGrid.querySelector('.composer-shell[data-thread-id="' + composerUi.threadId + '"]');
+                if (!shell) {
+                    return;
+                }
+
+                var dropdownSelector = '';
+                var activeSelector = '';
+                if (composerUi.dropdown === 'slash') {
+                    dropdownSelector = '.slash-dropdown.visible';
+                    activeSelector = '.slash-item.active';
+                } else if (composerUi.dropdown === 'file') {
+                    dropdownSelector = '.file-dropdown.visible';
+                    activeSelector = '.file-item.active';
+                } else {
+                    return;
+                }
+
+                var dropdown = shell.querySelector(dropdownSelector);
+                var activeItem = dropdown ? dropdown.querySelector(activeSelector) : null;
+                if (activeItem && typeof activeItem.scrollIntoView === 'function') {
+                    activeItem.scrollIntoView({ block: 'nearest' });
                 }
             }
 
@@ -2011,23 +2211,41 @@ export function getWebviewContent(
                 });
             }
 
-            function rebuildDimensionOptions(threadCount) {
-                var current = dimensionSelect.value;
-                dimensionSelect.innerHTML = '';
-                for (var c = 1; c <= threadCount; c++) {
-                    if (threadCount % c === 0) {
-                        var r = threadCount / c;
-                        var val = c + 'x' + r;
-                        var opt = document.createElement('option');
-                        opt.value = val;
-                        opt.textContent = val;
-                        dimensionSelect.appendChild(opt);
+            function rebuildDimensionOptions(threadCount, preferredDimension) {
+                var current = isValidDimension(preferredDimension)
+                    ? preferredDimension
+                    : (isValidDimension(dimensionSelect.value) ? dimensionSelect.value : currentDimension);
+                var count = Math.max(1, threadCount || 1);
+                var seen = Object.create(null);
+                var options = [];
+
+                function addOption(value) {
+                    if (!isValidDimension(value) || seen[value]) {
+                        return;
+                    }
+                    seen[value] = true;
+                    options.push(value);
+                }
+
+                addOption('1x1');
+                addOption(current);
+                for (var c = 1; c <= count; c++) {
+                    if (count % c === 0) {
+                        addOption(c + 'x' + (count / c));
                     }
                 }
-                if (dimensionSelect.querySelector('option[value="' + current + '"]')) {
+
+                dimensionSelect.innerHTML = '';
+                for (var i = 0; i < options.length; i++) {
+                    var opt = document.createElement('option');
+                    opt.value = options[i];
+                    opt.textContent = options[i];
+                    dimensionSelect.appendChild(opt);
+                }
+                if (isValidDimension(current) && dimensionSelect.querySelector('option[value="' + current + '"]')) {
                     dimensionSelect.value = current;
                 } else {
-                    dimensionSelect.value = dimensionSelect.options[0] ? dimensionSelect.options[0].value : '1x1';
+                    dimensionSelect.value = '1x1';
                 }
             }
 
@@ -2056,18 +2274,41 @@ export function getWebviewContent(
                 }
             });
 
+            function openFileFromLink(fileLink) {
+                if (!fileLink) {
+                    return;
+                }
+                vscode.postMessage({
+                    type: 'openFile',
+                    filePath: fileLink.getAttribute('data-file-path'),
+                    line: fileLink.getAttribute('data-line') || ''
+                });
+            }
+
             paneGrid.addEventListener('click', function(event) {
                 var fileLink = event.target.closest('.file-link');
                 if (fileLink) {
+                    event.preventDefault();
                     event.stopPropagation();
-                    vscode.postMessage({
-                        type: 'openFile',
-                        filePath: fileLink.getAttribute('data-file-path'),
-                        line: fileLink.getAttribute('data-line') || ''
-                    });
+                    openFileFromLink(fileLink);
+                    return;
+                }
+            });
+
+            paneGrid.addEventListener('keydown', function(event) {
+                if (event.key !== 'Enter' && event.key !== ' ') {
                     return;
                 }
 
+                var fileLink = event.target.closest('.file-link');
+                if (fileLink) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openFileFromLink(fileLink);
+                }
+            });
+
+            paneGrid.addEventListener('click', function(event) {
                 var actionEl = event.target.closest('[data-action]');
                 var pane = event.target.closest('.pane');
                 if (pane && !actionEl) {
@@ -2164,6 +2405,17 @@ export function getWebviewContent(
                 if (action === 'pick-file') {
                     var textarea = paneGrid.querySelector('.composer-input[data-thread-id="' + threadId + '"]');
                     selectFileFromDropdown(threadId, actionEl.getAttribute('data-path'), textarea);
+                    return;
+                }
+                if (action === 'toggle-recs') {
+                    recOpen[threadId] = !recOpen[threadId];
+                    var wrap = actionEl.closest('.composer-recommendations');
+                    if (wrap) {
+                        var list = wrap.querySelector('.recommendations');
+                        var togBtn = wrap.querySelector('.rec-toggle');
+                        if (list) { list.classList.toggle('open', !!recOpen[threadId]); }
+                        if (togBtn) { togBtn.classList.toggle('open', !!recOpen[threadId]); }
+                    }
                     return;
                 }
                 if (action === 'use-recommendation') {
@@ -2468,9 +2720,10 @@ export function getWebviewContent(
                 if (message.type === 'textUpdate') {
                     // Lightweight incremental update — only touch the pending element
                     var tid = message.threadId;
+                    var liveThread = null;
                     var pendingEl = paneGrid.querySelector('.message-pending[data-thread-id="' + tid + '"]');
                     if (pendingEl) {
-                        pendingEl.textContent = message.text;
+                        pendingEl.innerHTML = linkifyFilePaths(escapeHtml(message.text));
                     } else {
                         // First chunk — create the pending element inside the body
                         var paneBody = paneGrid.querySelector('.pane[data-thread-id="' + tid + '"] .pane-body');
@@ -2481,7 +2734,7 @@ export function getWebviewContent(
                             var newPending = document.createElement('div');
                             newPending.className = 'message message-assistant message-pending';
                             newPending.setAttribute('data-thread-id', tid);
-                            newPending.textContent = message.text;
+                            newPending.innerHTML = linkifyFilePaths(escapeHtml(message.text));
                             paneBody.appendChild(newPending);
                         }
                     }
@@ -2491,6 +2744,7 @@ export function getWebviewContent(
                             state.threads[si].pendingAssistantText = message.text;
                             state.threads[si].isStreaming = true;
                             state.threads[si].status = 'running';
+                            liveThread = state.threads[si];
                             break;
                         }
                     }
@@ -2514,6 +2768,7 @@ export function getWebviewContent(
                         }
                         var statusSpan = paneEl.querySelector('.composer-status');
                         if (statusSpan) { statusSpan.textContent = 'Generating response'; }
+                        updatePaneContextUsage(paneEl, liveThread);
                     }
                     return;
                 }
@@ -2526,12 +2781,13 @@ export function getWebviewContent(
                     if (typeof message.collapseCompleted === 'boolean') {
                         collapseCompleted = message.collapseCompleted;
                     }
-                    rebuildDimensionOptions(state.threads.length || 1);
-                    if (message.dimension) {
+                    if (isValidDimension(message.dimension)) {
                         currentDimension = message.dimension;
-                        dimensionSelect.value = currentDimension;
-                        updateGridDimension(currentDimension);
                     }
+                    rebuildDimensionOptions(state.threads.length || 1, currentDimension);
+                    dimensionSelect.value = currentDimension;
+                    currentDimension = dimensionSelect.value || '1x1';
+                    updateGridDimension(currentDimension);
                     renderState(focus);
 
                     // Drain queued messages for threads that finished streaming
@@ -2619,6 +2875,8 @@ export function getWebviewContent(
                 return paths;
             }
 
+            rebuildDimensionOptions(1, currentDimension);
+            updateGridDimension(currentDimension);
             try {
                 renderState();
             } catch (e) {

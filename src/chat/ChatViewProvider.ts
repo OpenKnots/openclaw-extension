@@ -202,6 +202,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             key?: string;
             value?: string | number;
         }) => {
+            log.info(`webview msg: type=${msg.type}, threadId=${msg.threadId || '(none)'}`);
             const thread = this.getThread(msg.threadId);
 
             switch (msg.type) {
@@ -606,7 +607,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private getAvailableModels(): string[] {
         const config = vscode.workspace.getConfiguration('openclaw');
         return config.get<string[]>('chat.models', [
-            'codex', 'claude'
+            'codex', 'claude', 'opencode'
         ]);
     }
 
@@ -745,6 +746,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async handleSend(thread: ChatThreadState, text: string): Promise<void> {
+        log.info(`handleSend: thread=${thread.id}, text="${text.slice(0, 80)}"`);
         const attachments = [...thread.pendingAttachments];
 
         thread.messages.push({ role: 'user', content: text });
@@ -753,6 +755,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         thread.isStreaming = true;
         thread.status = 'running';
         this.maybeRenameThread(thread, text);
+        log.info(`handleSend: pushed user msg, now ${thread.messages.length} msgs`);
         this.emitState();
 
         let fullPrompt = text;
@@ -808,8 +811,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private async handleChatEvent(threadId: string, event: ChatEvent): Promise<void> {
         const thread = this.threads.get(threadId);
         if (!thread) {
+            log.warn(`handleChatEvent: thread ${threadId} not found`);
             return;
         }
+        log.info(`handleChatEvent: type=${event.type}, thread=${threadId}`);
 
         switch (event.type) {
             case 'text':
@@ -1044,6 +1049,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 collapseCompleted
             };
             const threads = this.getThreadSnapshots();
+            const totalMessages = threads.reduce((sum, t) => sum + t.messages.length, 0);
+            log.info(`emitState: ${threads.length} threads, ${totalMessages} msgs, active=${this.activeThreadId}, sidebar=${!!this.sidebarView}, popout=${!!this.popOutPanel}, debug=${!!this.debugPanel}`);
 
             for (const webview of [this.sidebarView?.webview, this.popOutPanel?.webview, this.debugPanel?.webview]) {
                 if (!webview) { continue; }

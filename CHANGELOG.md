@@ -8,28 +8,25 @@ Semantic Versioning.
 
 ### Added
 
-- Add drag-and-drop file and image attachments onto the composer with a dashed blue drop overlay and type-aware attachment pills.
-- Add file-type icons on attachment pills (language-specific icons for TS, JS, Python, etc. and a framed-picture icon for images).
-- Add image vs file distinction in attachments — images are referenced by path instead of being read as binary text.
-- Add clipboard paste support for file attachments in the composer.
-- Add attachment summary count (`2 files, 1 image`) alongside pills.
-- Add per-thread message queuing so messages sent while a thread is streaming are held and automatically dispatched once the stream completes, with a "queued" indicator in the composer.
-- Add configurable chat generation controls for thinking level, temperature, max tokens, and a custom system prompt.
-- Add per-thread chat settings controls in the composer for adjusting thinking level, temperature, and max tokens from the UI.
-- Add automatic collapsing for completed chats in `1x1` multichat view, with a setting to disable it.
+- Add `opencode` to the default model picker options.
+- Add keyboard-activatable file-path links across rendered assistant text, tool details, error messages, pending assistant output, and crash reports.
+- Add a collapsible suggestions toggle in the composer so recommendation chips can be expanded on demand.
 
 ### Changed
 
-- Stream assistant text into the active thread incrementally so responses render live before completion.
-- Webview now explicitly requests initial state on load instead of relying on a timed bootstrap, fixing a race condition that could leave the chat panel blank.
+- Compact composer suggestions into a hidden-by-default list with a disclosure toggle.
+- Preserve a valid grid dimension selection and keep `1x1` available before the first webview state sync.
+- Hide the thread close action when only one thread is open.
 
 ### Fixed
 
-- Fix blank chat panel on load caused by the webview not receiving the initial state message from the extension.
+- Fix file-path detection so more rendered path formats are linkified, not just paths inside inline code spans.
+- Fix keyboard navigation in slash-command and `@`-file dropdowns so the active item is kept in view after rerenders.
+- Fix webview crash output escaping so crash summaries and linked paths render safely.
 
 ### Removed
 
-- Remove the per-pane "Focus" button from thread actions.
+- Remove the always-visible recommendation chip row in favor of the collapsible suggestions list.
 
 ## 0.2.0
 

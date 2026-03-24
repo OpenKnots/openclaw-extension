@@ -22,6 +22,14 @@ describe('getWebviewContent', () => {
         expect(html).not.toContain('id="inputWrapper"');
         expect(html).not.toContain("var recHtml = '';");
     });
+
+    it('keeps the active slash command visible after rerenders', () => {
+        const html = renderHTML();
+
+        expect(html).toContain('function scrollActiveComposerOptionIntoView()');
+        expect(html).toContain("activeItem.scrollIntoView({ block: 'nearest' });");
+        expect(html).toContain('scrollActiveComposerOptionIntoView();');
+    });
 });
 
 describe('CSP', () => {
@@ -127,6 +135,12 @@ describe('streaming and text updates', () => {
         expect(html).toContain('messageQueue[threadId] = raw');
         expect(html).toContain('messageQueue[t.id]');
     });
+
+    it('refreshes pane context usage during lightweight text updates', () => {
+        const html = renderHTML();
+        expect(html).toContain('function updatePaneContextUsage(paneEl, thread)');
+        expect(html).toContain('updatePaneContextUsage(paneEl, liveThread);');
+    });
 });
 
 describe('pane collapse', () => {
@@ -144,23 +158,49 @@ describe('pane collapse', () => {
         const html = renderHTML();
         expect(html).toContain('.pane.collapsed');
     });
+
+    it('falls back to live thread content for context usage when collapsed', () => {
+        const html = renderHTML();
+        expect(html).toContain('function getThreadSpaceUsage(thread)');
+        expect(html).toContain('formatContextGauge(getThreadSpaceUsage(thread), thread.contextMax || 128000)');
+    });
+
+    it('hides the close action when only one thread is visible', () => {
+        const html = renderHTML();
+        expect(html).toContain('(state.threads.length > 1');
+        expect(html).toContain("data-action=\"close\"");
+    });
 });
 
-describe('file links in assistant messages', () => {
+describe('file links', () => {
     it('defines linkifyFilePaths function', () => {
         const html = renderHTML();
         expect(html).toContain('function linkifyFilePaths(html)');
     });
 
-    it('applies linkifyFilePaths to rendered assistant messages', () => {
+    it('scans rendered text nodes for path-like content', () => {
+        const html = renderHTML();
+        expect(html).toContain('createTreeWalker(template.content, NodeFilter.SHOW_TEXT)');
+    });
+
+    it('applies linkifyFilePaths to assistant, tool, error, and pending text', () => {
         const html = renderHTML();
         expect(html).toContain('linkifyFilePaths(message.html');
+        expect(html).toContain("linkifyFilePaths(escapeHtml(entry.details || ''))");
+        expect(html).toContain("linkifyFilePaths(escapeHtml(message.content || ''))");
+        expect(html).toContain('linkifyFilePaths(escapeHtml(thread.pendingAssistantText))');
     });
 
     it('has CSS for file-link hover styling', () => {
         const html = renderHTML();
         expect(html).toContain('.file-link');
         expect(html).toContain('.file-link:hover');
+    });
+
+    it('makes file links keyboard-focusable', () => {
+        const html = renderHTML();
+        expect(html).toContain("link.setAttribute('tabindex', '0');");
+        expect(html).toContain("paneGrid.addEventListener('keydown'");
     });
 
     it('posts openFile message when file-link is clicked', () => {
@@ -197,6 +237,11 @@ describe('error handling and fallback', () => {
         expect(html).toContain('.openclaw-crash pre');
     });
 
+    it('linkifies paths inside crash reports', () => {
+        const html = renderHTML();
+        expect(html).toContain("'<pre>' + linkifyFilePaths(escapeHtml(msg)) + '</pre>'");
+    });
+
     it('wraps renderState in try/catch', () => {
         const html = renderHTML();
         expect(html).toContain("_showCrash('Render failed for thread");
@@ -229,6 +274,25 @@ describe('initialization', () => {
 
     it('builds dimension options from thread count', () => {
         const html = renderHTML();
-        expect(html).toContain('function rebuildDimensionOptions(threadCount)');
+        expect(html).toContain('function rebuildDimensionOptions(');
+        expect(html).toContain('preferredDimension');
+        expect(html).toContain("addOption('1x1');");
+    });
+
+    it('boots with a visible 1x1 dimension option before state arrives', () => {
+        const html = renderHTML();
+        expect(html).toContain('<option value="1x1">1x1</option>');
+        expect(html).toContain('rebuildDimensionOptions(1, currentDimension);');
+        expect(html).toContain('updateGridDimension(currentDimension);');
+    });
+});
+
+describe('generated script', () => {
+    it('produces an inline script that parses', () => {
+        const html = renderHTML();
+        const match = html.match(/<script nonce="[^"]*">([\s\S]*)<\/script>/);
+
+        expect(match).toBeTruthy();
+        expect(() => new Function(match?.[1] ?? '')).not.toThrow();
     });
 });

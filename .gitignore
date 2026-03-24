@@ -46,3 +46,6 @@ webview-ui/dist/
 .idea/
 
 .venv
+
+# Debug plans
+DEBUG_PLAN.md

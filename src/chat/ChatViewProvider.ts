@@ -22,7 +22,7 @@ type ChatMessage =
         entries: Array<{ title: string; status: string; details: string }>;
     };
 
-type Attachment = { name: string; path: string };
+type Attachment = { name: string; path: string; type: 'file' | 'image'; previewUri?: string };
 
 type ChatThreadState = {
     id: string;
@@ -109,7 +109,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [this.extensionUri]
+            localResourceRoots: [
+                this.extensionUri,
+                ...(vscode.workspace.workspaceFolders?.map(f => f.uri) || [])
+            ]
         };
 
         webviewView.webview.html = getWebviewContent(
@@ -138,7 +141,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
-                localResourceRoots: [this.extensionUri],
+                localResourceRoots: [
+                    this.extensionUri,
+                    ...(vscode.workspace.workspaceFolders?.map(f => f.uri) || [])
+                ],
                 retainContextWhenHidden: true
             }
         );
@@ -453,6 +459,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.emitState();
     }
 
+    private static readonly IMAGE_EXTENSIONS = new Set([
+        '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico', '.tiff', '.tif',
+    ]);
+
     private async addAttachments(thread: ChatThreadState, filePaths: string[]): Promise<void> {
         let changed = false;
 
@@ -463,9 +473,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
             try {
                 await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
+                const ext = path.extname(filePath).toLowerCase();
                 thread.pendingAttachments.push({
                     name: path.basename(filePath),
-                    path: filePath
+                    path: filePath,
+                    type: ChatViewProvider.IMAGE_EXTENSIONS.has(ext) ? 'image' : 'file',
                 });
                 changed = true;
             } catch {
@@ -744,6 +756,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const sections: string[] = [];
 
         for (const att of attachments) {
+            if (att.type === 'image') {
+                sections.push(`<image path="${att.path}" />`);
+                continue;
+            }
             try {
                 const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(att.path));
                 const content = new TextDecoder().decode(bytes);
@@ -1007,15 +1023,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const config = vscode.workspace.getConfiguration('openclaw');
         const dimension = config.get<string>('chat.dimension', '1x1');
         const collapseCompleted = config.get<boolean>('chat.collapseCompleted', true);
-        this.postToAll({
+        const base = {
             type: 'state',
             activeThreadId: this.activeThreadId,
             visibleThreadIds: this.visibleThreadIds,
             models: this.getAvailableModels(),
-            threads: this.getThreadSnapshots(),
             dimension,
             collapseCompleted
-        });
+        };
+        const threads = this.getThreadSnapshots();
+
+        for (const webview of [this.sidebarView?.webview, this.popOutPanel?.webview]) {
+            if (!webview) { continue; }
+            const enriched = threads.map(t => ({
+                ...t,
+                pendingAttachments: t.pendingAttachments.map(att =>
+                    att.type === 'image'
+                        ? { ...att, previewUri: webview.asWebviewUri(vscode.Uri.file(att.path)).toString() }
+                        : att
+                )
+            }));
+            webview.postMessage({ ...base, threads: enriched });
+        }
     }
 
     private getThreadSnapshots(): ThreadSnapshot[] {

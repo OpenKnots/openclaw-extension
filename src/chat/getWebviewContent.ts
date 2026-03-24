@@ -22,7 +22,7 @@ export function getWebviewContent(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'none'; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+          content="default-src 'none'; img-src ${cspSource}; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <style nonce="${nonce}">
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -553,13 +553,27 @@ export function getWebviewContent(
             position: absolute;
             inset: 0;
             display: none;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: rgba(0, 0, 0, 0.16);
-            font-size: 13px;
-            font-weight: 600;
+            gap: 4px;
+            background: rgba(0, 122, 204, 0.10);
+            backdrop-filter: blur(2px);
+            border: 2px dashed var(--vscode-focusBorder, #007acc);
+            border-radius: 14px;
             z-index: 2;
             pointer-events: none;
+        }
+
+        .drop-overlay-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        .drop-overlay-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--vscode-textLink-foreground, #3794ff);
         }
 
         .drop-overlay.visible {
@@ -670,12 +684,45 @@ export function getWebviewContent(
         .att-pill {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            max-width: 220px;
-            border-radius: 999px;
-            padding: 3px 8px;
-            background: rgba(255, 255, 255, 0.07);
+            gap: 5px;
+            max-width: 240px;
+            border-radius: 8px;
+            padding: 4px 8px 4px 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             font-size: 11px;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .att-pill:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.16);
+        }
+
+        .att-pill-icon {
+            font-size: 12px;
+            flex-shrink: 0;
+            opacity: 0.8;
+        }
+
+        .att-pill.att-image {
+            border-color: rgba(0, 122, 204, 0.25);
+        }
+
+        .att-pill.att-image .att-pill-icon {
+            color: var(--vscode-textLink-foreground, #3794ff);
+        }
+
+        .att-pill-thumb {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .att-pill.att-image {
+            padding-left: 3px;
         }
 
         .att-pill-name {
@@ -687,12 +734,29 @@ export function getWebviewContent(
         .att-pill-remove {
             border: none;
             background: none;
+            color: inherit;
             cursor: pointer;
-            opacity: 0.58;
+            opacity: 0.45;
+            font-size: 13px;
+            line-height: 1;
+            padding: 0 1px;
+            transition: opacity 0.15s;
         }
 
         .att-pill-remove:hover {
             opacity: 1;
+        }
+
+        .att-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 11px;
+            opacity: 0.72;
         }
 
         .composer-footer {
@@ -1337,9 +1401,35 @@ export function getWebviewContent(
                 '</div>';
             }
 
+            function getFileIcon(name, type) {
+                if (type === 'image') { return '\u{1F5BC}\uFE0F'; }
+                var ext = (name.split('.').pop() || '').toLowerCase();
+                switch (ext) {
+                    case 'ts': case 'tsx': return '\u{1F4D8}';
+                    case 'js': case 'jsx': case 'mjs': case 'cjs': return '\u{1F4D2}';
+                    case 'py': return '\u{1F40D}';
+                    case 'md': case 'mdx': return '\u{1F4DD}';
+                    case 'json': case 'yaml': case 'yml': case 'toml': return '\u{1F4CB}';
+                    case 'css': case 'scss': case 'less': return '\u{1F3A8}';
+                    case 'html': case 'htm': case 'vue': case 'svelte': return '\u{1F310}';
+                    case 'sh': case 'bash': case 'zsh': return '\u{1F4DF}';
+                    case 'sql': return '\u{1F5C3}\uFE0F';
+                    case 'rs': return '\u{2699}\uFE0F';
+                    case 'go': return '\u{1F439}';
+                    default: return '\u{1F4C4}';
+                }
+            }
+
             function renderAttachments(thread) {
-                return (thread.pendingAttachments || []).map(function(file, index) {
-                    return '<span class="att-pill">' +
+                var atts = thread.pendingAttachments || [];
+                if (!atts.length) { return ''; }
+                var pills = atts.map(function(file, index) {
+                    var icon = getFileIcon(file.name, file.type);
+                    var visual = (file.type === 'image' && file.previewUri)
+                        ? '<img class="att-pill-thumb" src="' + escapeAttr(file.previewUri) + '" alt="' + escapeAttr(file.name) + '">'
+                        : '<span class="att-pill-icon">' + icon + '</span>';
+                    return '<span class="att-pill' + (file.type === 'image' ? ' att-image' : '') + '">' +
+                        visual +
                         '<span class="att-pill-name" title="' + escapeAttr(file.path) + '">' +
                             escapeHtml(file.name) +
                         '</span>' +
@@ -1347,6 +1437,14 @@ export function getWebviewContent(
                             ' data-thread-id="' + thread.id + '" data-index="' + index + '">&#x00d7;</button>' +
                     '</span>';
                 }).join('');
+                var imageCount = atts.filter(function(a) { return a.type === 'image'; }).length;
+                var fileCount = atts.length - imageCount;
+                var summary = '<span class="att-count">';
+                if (fileCount > 0) { summary += fileCount + ' file' + (fileCount > 1 ? 's' : ''); }
+                if (fileCount > 0 && imageCount > 0) { summary += ', '; }
+                if (imageCount > 0) { summary += imageCount + ' image' + (imageCount > 1 ? 's' : ''); }
+                summary += '</span>';
+                return pills + summary;
             }
 
             function renderComposerRecommendations(thread) {
@@ -1384,7 +1482,8 @@ export function getWebviewContent(
                     renderSettingsDropdown(thread) +
                     '<div class="composer-card' + (composerUi.dragThreadId === thread.id ? ' drag-active' : '') + '" data-thread-id="' + thread.id + '">' +
                         '<div class="drop-overlay' + (composerUi.dragThreadId === thread.id ? ' visible' : '') + '">' +
-                            'Drop files to attach to this thread' +
+                            '<span class="drop-overlay-icon">\u{1F4CE}</span>' +
+                            '<span class="drop-overlay-label">Drop files or images to attach</span>' +
                         '</div>' +
                         '<div class="composer-top">' +
                             '<div class="composer-target"><span>Thread</span><strong>' +
@@ -2212,6 +2311,30 @@ export function getWebviewContent(
                     });
                 }
                 renderState();
+            });
+
+            paneGrid.addEventListener('paste', function(event) {
+                var textarea = event.target.closest('.composer-input');
+                if (!textarea || !event.clipboardData) { return; }
+                var threadId = textarea.getAttribute('data-thread-id');
+                var items = event.clipboardData.items;
+                var filePaths = [];
+                for (var pi = 0; pi < items.length; pi++) {
+                    if (items[pi].kind === 'file') {
+                        var file = items[pi].getAsFile();
+                        if (file && file.path) {
+                            filePaths.push(file.path);
+                        }
+                    }
+                }
+                if (filePaths.length > 0) {
+                    event.preventDefault();
+                    vscode.postMessage({
+                        type: 'attachFiles',
+                        threadId: threadId,
+                        filePaths: filePaths
+                    });
+                }
             });
 
             document.addEventListener('click', function(event) {

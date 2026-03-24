@@ -8,6 +8,11 @@ Semantic Versioning.
 
 ### Added
 
+- Add drag-and-drop file and image attachments onto the composer with a dashed blue drop overlay and type-aware attachment pills.
+- Add file-type icons on attachment pills (language-specific icons for TS, JS, Python, etc. and a framed-picture icon for images).
+- Add image vs file distinction in attachments — images are referenced by path instead of being read as binary text.
+- Add clipboard paste support for file attachments in the composer.
+- Add attachment summary count (`2 files, 1 image`) alongside pills.
 - Add per-thread message queuing so messages sent while a thread is streaming are held and automatically dispatched once the stream completes, with a "queued" indicator in the composer.
 - Add configurable chat generation controls for thinking level, temperature, max tokens, and a custom system prompt.
 - Add per-thread chat settings controls in the composer for adjusting thinking level, temperature, and max tokens from the UI.
@@ -16,6 +21,11 @@ Semantic Versioning.
 ### Changed
 
 - Stream assistant text into the active thread incrementally so responses render live before completion.
+- Webview now explicitly requests initial state on load instead of relying on a timed bootstrap, fixing a race condition that could leave the chat panel blank.
+
+### Fixed
+
+- Fix blank chat panel on load caused by the webview not receiving the initial state message from the extension.
 
 ### Removed
 

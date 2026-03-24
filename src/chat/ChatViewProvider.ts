@@ -178,9 +178,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             query?: string;
             filePath?: string;
             filePaths?: string[];
+            line?: string;
             chatType?: string;
             model?: string;
             dimension?: string;
+            key?: string;
+            value?: string | number;
         }) => {
             const thread = this.getThread(msg.threadId);
 
@@ -217,6 +220,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'requestRecommendations':
                     this.pushRecommendations();
+                    break;
+                case 'requestState':
+                    this.emitState();
                     break;
                 case 'cancel':
                     if (thread) {
@@ -264,6 +270,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         );
                     }
                     break;
+                case 'setSetting':
+                    if (msg.key && msg.value !== undefined) {
+                        void vscode.workspace.getConfiguration('openclaw').update(
+                            msg.key,
+                            msg.value,
+                            vscode.ConfigurationTarget.Global
+                        );
+                    }
+                    break;
                 case 'attach':
                     if (thread) {
                         await this.handleAttach(thread);
@@ -296,6 +311,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 case 'attachFiles':
                     if (thread && Array.isArray(msg.filePaths) && msg.filePaths.length > 0) {
                         await this.addAttachments(thread, msg.filePaths);
+                    }
+                    break;
+                case 'openFile':
+                    if (msg.filePath) {
+                        await this.openFileInEditor(msg.filePath, msg.line);
                     }
                     break;
             }
@@ -769,7 +789,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 thread.pendingAssistantText += event.text;
                 thread.isStreaming = true;
                 thread.status = 'running';
-                this.emitState();
+                // Send lightweight update instead of full state rebuild
+                this.postToAll({
+                    type: 'textUpdate',
+                    threadId: thread.id,
+                    text: thread.pendingAssistantText,
+                });
                 break;
             case 'toolCall':
                 this.appendToolMessage(thread, {
@@ -981,13 +1006,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private emitState(): void {
         const config = vscode.workspace.getConfiguration('openclaw');
         const dimension = config.get<string>('chat.dimension', '1x1');
+        const collapseCompleted = config.get<boolean>('chat.collapseCompleted', true);
         this.postToAll({
             type: 'state',
             activeThreadId: this.activeThreadId,
             visibleThreadIds: this.visibleThreadIds,
             models: this.getAvailableModels(),
             threads: this.getThreadSnapshots(),
-            dimension
+            dimension,
+            collapseCompleted
         });
     }
 
@@ -1037,6 +1064,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private postToAll(message: Record<string, unknown>): void {
         this.sidebarView?.webview.postMessage(message);
         this.popOutPanel?.webview.postMessage(message);
+    }
+
+    private async openFileInEditor(filePath: string, lineStr?: string): Promise<void> {
+        const cwd = this.getWorkspaceCwd();
+        const resolvedPath = path.isAbsolute(filePath) ? filePath : cwd ? path.join(cwd, filePath) : filePath;
+        try {
+            const uri = vscode.Uri.file(resolvedPath);
+            const doc = await vscode.workspace.openTextDocument(uri);
+            const lineNum = lineStr ? Math.max(0, parseInt(lineStr, 10) - 1) : 0;
+            const selection = new vscode.Range(lineNum, 0, lineNum, 0);
+            await vscode.window.showTextDocument(doc, { selection, preview: true });
+        } catch (err) {
+            log.warn('openFileInEditor failed', err);
+            void vscode.window.showWarningMessage(`Could not open file: ${filePath}`);
+        }
     }
 
     private getWorkspaceCwd(): string | undefined {

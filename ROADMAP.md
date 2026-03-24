@@ -149,12 +149,15 @@ Workspace-scoped memory that persists across sessions and informs all threads, m
 
 Bring the agent's code changes closer to the editor with inline diff and apply workflows.
 
+- **In-thread diff rendering** — render file diffs directly inside the chat thread as collapsible, syntax-highlighted diff blocks so the user can review changes without leaving the conversation.
 - **Inline diff view** — when the agent proposes code changes, show a VS Code–native inline diff (green/red) in the editor instead of a raw code block in chat.
-- **Apply / Reject buttons** — one-click buttons on each diff hunk to apply or discard individual changes.
-- **Batch apply** — apply all proposed changes from a single agent response at once.
+- **Accept Changes button** — a per-hunk "Accept" button on each diff block in the thread that applies that single change to the file on disk with one click.
+- **Accept All Changes** — a top-level "Accept All" button on agent responses containing multiple diffs that applies every proposed change across all files at once.
+- **Reject / Dismiss** — per-hunk and batch "Reject" buttons to discard individual or all proposed changes without applying them.
 - **Edit-in-place** — the user can edit the proposed code directly in the diff view before applying.
 - **Undo integration** — applied changes are added to the editor's undo stack so `Cmd+Z` reverts them cleanly.
-- **Multi-file diffs** — when the agent modifies multiple files, show a navigable list of affected files with per-file diffs.
+- **Multi-file diffs** — when the agent modifies multiple files, show a navigable list of affected files with per-file diffs, each with its own Accept / Reject controls.
+- **Diff navigation** — keyboard shortcuts to jump between diff hunks within a thread (next diff / previous diff).
 - **Ghost text preview** — optionally show proposed insertions as ghost text (like Copilot suggestions) that the user can accept with Tab.
 
 ---
@@ -171,16 +174,41 @@ Let the agent interact with the integrated terminal for build, test, and debug w
 
 ---
 
-## Git Workflow Integration
+## Comprehensive Git Management
 
-Deep integration with Git for branch management, PR workflows, and commit assistance.
+End-to-end Git and GitHub integration covering branch management, pull requests, issues, and collaborative workflows — all from within the chat panel.
 
+### Branch & Commit Management
 - **Branch awareness** — the agent always knows the current branch, dirty state, and remote tracking status.
-- **`/pr`** — generate a pull request title, description, and test plan from the current branch's diff against main, then create it via `gh`.
+- **Branch-per-task** — when starting a new plan or feature, optionally auto-create and checkout a feature branch.
+- **Commit splitting** — suggest splitting a large set of changes into logical atomic commits with appropriate messages.
 - **`/changelog`** — auto-generate changelog entries from commits since the last tag, grouped by conventional commit type.
 - **Conflict resolution** — when merge conflicts are detected, the agent can propose resolutions with inline diffs.
-- **Commit splitting** — suggest splitting a large set of changes into logical atomic commits with appropriate messages.
-- **Branch-per-task** — when starting a new plan or feature, optionally auto-create and checkout a feature branch.
+
+### Pull Request Workflows
+- **`/pr`** — generate a pull request title, description, and test plan from the current branch's diff against main, then create it via `gh`.
+- **PR review (`/pr-review`)** — fetch an open PR by number or URL, display the diff in-thread, and provide a structured code review with inline comments, severity levels, and suggested fixes.
+- **PR submission (`/pr-submit`)** — stage changes, create a branch, push, and open a PR in one command with auto-generated title, description, and test plan. Supports draft PRs and reviewer assignment.
+- **PR status dashboard** — list open PRs for the repo with status (review requested, approved, changes requested, CI passing/failing) and quick actions (merge, close, comment).
+- **Review response** — reply to PR review comments directly from the chat panel, resolve conversations, and push follow-up commits.
+- **Merge management** — merge PRs from chat with strategy selection (merge, squash, rebase) and automatic branch cleanup.
+
+### Issue Management
+- **`/issue`** — create, view, update, and close GitHub issues from chat. Supports labels, assignees, milestones, and templates.
+- **Issue browser** — list and filter open issues by label, assignee, or milestone with quick-view summaries.
+- **Issue triage** — the agent can suggest labels, priority, and assignees based on issue content and project history.
+- **Issue templates** — auto-populate issue bodies using repo-defined templates with smart field filling based on conversation context.
+
+### Issue–PR Matching
+- **Auto-linking** — when creating a PR, the agent scans commit messages and branch names for issue references (`#123`, `fixes #456`) and adds closing keywords automatically.
+- **Issue-to-PR (`/issue-pr <number>`)** — given an issue, the agent creates a feature branch, proposes an implementation plan, and opens a draft PR linked to the issue.
+- **PR-to-issue backfill** — for PRs without linked issues, suggest creating a corresponding issue for traceability.
+- **Cross-reference view** — show a thread-local summary of which issues are addressed by the current branch's changes and which remain open.
+
+### Release & CI
+- **Release drafting** — generate release notes from merged PRs and closed issues since the last tag, grouped by category.
+- **CI status** — show GitHub Actions / CI pipeline status for the current branch or PR, with log tailing for failed jobs.
+- **Check re-run** — re-trigger failed CI checks from chat without navigating to GitHub.
 
 ---
 
@@ -207,6 +235,18 @@ Allow users to view and modify extension settings directly from the chat panel w
 - **Scoped settings** — support workspace-level vs. global-level overrides (e.g., `/settings --workspace model claude-haiku-4-5-20251001`).
 - **Reset** — `/settings reset <key>` restores a setting to its default value; `/settings reset --all` restores all settings.
 - **Autocomplete** — the slash command input should offer autocomplete for setting keys and, where applicable, their valid values.
+
+---
+
+## Connection Method Selection
+
+Make provider setup explicit by letting users choose how the extension connects and authenticates for each backend.
+
+- **Connection method picker** — during onboarding and provider setup, let users choose a connection method such as API key, OAuth, local runtime, or custom endpoint.
+- **Provider-specific auth flows** — show only the methods supported by the selected provider and guide the user through the right flow for that provider.
+- **Per-provider saved profiles** — allow users to save multiple connection profiles per provider (for example personal API key, work OAuth account, local dev server).
+- **Connection status & switching** — surface the active connection method in the UI and allow quick switching without re-running the full setup wizard.
+- **Credential validation** — verify the selected method before saving and provide actionable errors for expired OAuth sessions, invalid API keys, or unreachable local endpoints.
 
 ---
 

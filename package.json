@@ -150,10 +150,44 @@
           ],
           "description": "Available models shown in the chat model picker"
         },
+        "openclaw.chat.thinkingLevel": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ],
+          "default": "medium",
+          "description": "Thinking/reasoning depth for the AI model (none, low, medium, high)"
+        },
+        "openclaw.chat.temperature": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Temperature for response generation (0 = deterministic, 2 = very creative)"
+        },
+        "openclaw.chat.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum response tokens (0 = model default)"
+        },
+        "openclaw.chat.systemPrompt": {
+          "type": "string",
+          "default": "",
+          "description": "Custom system prompt prepended to all chat messages (leave empty for default)"
+        },
         "openclaw.chat.dynamicSubject": {
           "type": "boolean",
           "default": true,
           "description": "Dynamically update thread subjects based on chat context (slash commands, file names, topics)"
+        },
+        "openclaw.chat.collapseCompleted": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically collapse completed chats in 1x1 multichat view. Collapsed threads show only their header and can be expanded by clicking."
         },
         "openclaw.chat.dimension": {
           "type": "string",

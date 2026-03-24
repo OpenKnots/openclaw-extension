@@ -6,6 +6,21 @@ Semantic Versioning.
 
 ## Unreleased
 
+### Added
+
+- Add per-thread message queuing so messages sent while a thread is streaming are held and automatically dispatched once the stream completes, with a "queued" indicator in the composer.
+- Add configurable chat generation controls for thinking level, temperature, max tokens, and a custom system prompt.
+- Add per-thread chat settings controls in the composer for adjusting thinking level, temperature, and max tokens from the UI.
+- Add automatic collapsing for completed chats in `1x1` multichat view, with a setting to disable it.
+
+### Changed
+
+- Stream assistant text into the active thread incrementally so responses render live before completion.
+
+### Removed
+
+- Remove the per-pane "Focus" button from thread actions.
+
 ## 0.2.0
 
 ### Added

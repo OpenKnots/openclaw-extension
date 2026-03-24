@@ -109,14 +109,13 @@ export function getWebviewContent(
             padding: 10px 12px 12px;
             display: grid;
             grid-template-columns: repeat(var(--grid-cols, 1), minmax(280px, 1fr));
-            grid-template-rows: repeat(var(--grid-rows, 1), minmax(340px, 1fr));
+            grid-template-rows: repeat(var(--grid-rows, 1), 1fr);
             gap: 10px;
-            align-content: start;
             overflow: auto;
         }
 
         .pane {
-            min-height: 340px;
+            min-height: 0;
             display: grid;
             grid-template-rows: auto minmax(160px, 1fr) auto;
             border-radius: 14px;
@@ -130,6 +129,45 @@ export function getWebviewContent(
         .pane.active {
             border-color: var(--vscode-focusBorder, #007acc);
             box-shadow: inset 0 0 0 1px rgba(0, 122, 204, 0.25);
+        }
+
+        .pane.collapsed {
+            grid-template-rows: auto;
+            min-height: 0;
+            cursor: pointer;
+            opacity: 0.75;
+            transition: opacity 0.15s ease;
+        }
+
+        .pane.collapsed:hover {
+            opacity: 1;
+        }
+
+        .pane.collapsed .pane-body,
+        .pane.collapsed .composer-shell {
+            display: none;
+        }
+
+        .pane.collapsed .pane-header {
+            border-bottom: none;
+            padding: 8px 10px;
+        }
+
+        .pane-collapse-btn {
+            background: none;
+            border: none;
+            color: var(--vscode-descriptionForeground, #888);
+            cursor: pointer;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            opacity: 0.7;
+            transition: opacity 0.15s ease;
+        }
+
+        .pane-collapse-btn:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.06);
         }
 
         .pane-header {
@@ -306,6 +344,32 @@ export function getWebviewContent(
             color: var(--vscode-foreground);
         }
 
+        .message-assistant .file-link {
+            color: var(--vscode-textLink-foreground, #3794ff);
+            cursor: pointer;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+        }
+        .message-assistant .file-link:hover {
+            border-bottom-color: var(--vscode-textLink-foreground, #3794ff);
+        }
+
+        .message-pending::after {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 14px;
+            margin-left: 2px;
+            background: var(--vscode-textLink-foreground, #3794ff);
+            border-radius: 1px;
+            vertical-align: text-bottom;
+            animation: blink 0.8s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
         .message-error {
             color: var(--vscode-errorForeground, #f48771);
             font-size: 12px;
@@ -313,10 +377,11 @@ export function getWebviewContent(
 
         .message-tool {
             align-self: stretch;
-            border-radius: 12px;
+            border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.03);
             overflow: hidden;
+            margin: 2px 0;
         }
 
         .message-tool summary {
@@ -324,10 +389,16 @@ export function getWebviewContent(
             align-items: center;
             justify-content: space-between;
             gap: 10px;
-            padding: 8px 10px;
+            padding: 6px 10px;
             cursor: pointer;
             list-style: none;
             font-size: 11px;
+            user-select: none;
+            transition: background 0.15s;
+        }
+
+        .message-tool summary:hover {
+            background: rgba(255, 255, 255, 0.04);
         }
 
         .message-tool summary::-webkit-details-marker {
@@ -337,34 +408,53 @@ export function getWebviewContent(
         .message-tool-summary {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             min-width: 0;
         }
 
-        .message-tool-summary::before {
-            content: '\\2699';
-            opacity: 0.8;
+        .message-tool-chevron {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            opacity: 0.6;
+            transition: transform 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .message-tool[open] .message-tool-chevron {
+            transform: rotate(90deg);
+        }
+
+        .message-tool-icon {
+            opacity: 0.65;
+            font-size: 12px;
+        }
+
+        .message-tool-label {
+            opacity: 0.85;
         }
 
         .message-tool-count {
-            opacity: 0.72;
+            opacity: 0.5;
+            font-size: 10px;
         }
 
         .message-tool-status {
-            opacity: 0.62;
+            opacity: 0.5;
             text-transform: lowercase;
+            font-size: 10px;
         }
 
         .message-tool-body {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            padding: 0 10px 10px;
+            gap: 6px;
+            padding: 0 10px 8px;
         }
 
         .message-tool-entry {
-            padding-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .message-tool-entry:first-child {
@@ -377,31 +467,35 @@ export function getWebviewContent(
             align-items: baseline;
             justify-content: space-between;
             gap: 10px;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             font-size: 11px;
         }
 
         .message-tool-entry-title {
             font-weight: 600;
             word-break: break-word;
+            opacity: 0.85;
         }
 
         .message-tool-entry-status {
-            opacity: 0.62;
+            opacity: 0.5;
             text-transform: lowercase;
             white-space: nowrap;
+            font-size: 10px;
         }
 
         .message-tool-details {
             margin: 0;
-            padding: 8px;
-            border-radius: 8px;
-            background: rgba(0, 0, 0, 0.16);
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.18);
             font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
             font-size: 11px;
             line-height: 1.45;
             white-space: pre-wrap;
             word-break: break-word;
+            max-height: 200px;
+            overflow-y: auto;
         }
 
         .composer-shell {
@@ -650,6 +744,13 @@ export function getWebviewContent(
             background: var(--vscode-errorForeground, #f48771);
         }
 
+        .queued-indicator {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground, #888);
+            margin-right: 6px;
+            font-style: italic;
+        }
+
         .selector-search {
             width: calc(100% - 8px);
             margin: 4px;
@@ -714,6 +815,70 @@ export function getWebviewContent(
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .settings-dropdown {
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            bottom: calc(100% - 2px);
+            display: none;
+            max-height: 320px;
+            overflow: auto;
+            border-radius: 12px;
+            border: 1px solid var(--vscode-editorWidget-border, rgba(255, 255, 255, 0.08));
+            background: var(--vscode-editorWidget-background, var(--vscode-dropdown-background, #252526));
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+            padding: 10px;
+            z-index: 10;
+        }
+
+        .settings-dropdown.visible {
+            display: block;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 6px 4px;
+        }
+
+        .settings-row + .settings-row {
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .settings-label {
+            font-size: 11px;
+            font-weight: 600;
+            opacity: 0.85;
+            white-space: nowrap;
+        }
+
+        .settings-control select,
+        .settings-control input[type="range"] {
+            font: inherit;
+            font-size: 11px;
+            height: 24px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.06);
+            color: inherit;
+            cursor: pointer;
+            padding: 0 6px;
+        }
+
+        .settings-control input[type="range"] {
+            width: 80px;
+            padding: 0;
+        }
+
+        .settings-value {
+            font-size: 10px;
+            opacity: 0.6;
+            min-width: 28px;
+            text-align: right;
         }
 
         .recommendations {
@@ -796,12 +961,8 @@ export function getWebviewContent(
             </div>
             <div class="header-actions">
                 <select class="dimension-select" id="dimensionSelect" title="Grid dimension">
-                    <option value="1x1">1x1</option>
-                    <option value="2x2">2x2</option>
-                    <option value="2x3">2x3</option>
-                    <option value="3x3">3x3</option>
-                    <option value="4x4">4x4</option>
                 </select>
+                <button class="icon-btn" id="btn-flip" title="Flip layout orientation">&#x21C4;</button>
                 <button class="icon-btn" id="btn-new" title="New thread">+</button>
                 <button class="icon-btn" id="btn-split" title="Split from active thread">&#x2398;</button>
                 ${isSidebar ? '<button class="icon-btn" id="btn-popout" title="Open in editor">&#x2197;</button>' : ''}
@@ -819,6 +980,7 @@ export function getWebviewContent(
             var paneGrid = document.getElementById('paneGrid');
             var dimensionSelect = document.getElementById('dimensionSelect');
             var btnNew = document.getElementById('btn-new');
+            var btnFlip = document.getElementById('btn-flip');
             var btnSplit = document.getElementById('btn-split');
             var btnPopout = document.getElementById('btn-popout');
 
@@ -831,6 +993,7 @@ export function getWebviewContent(
             var availableModels = [];
             var recommendations = [];
             var drafts = Object.create(null);
+            var messageQueue = Object.create(null);
             var currentDimension = '1x1';
 
             var chatTypes = [
@@ -850,7 +1013,10 @@ export function getWebviewContent(
                 fileSearchDebounce: null,
                 fileResults: [],
                 modelQuery: '',
-                dragThreadId: ''
+                dragThreadId: '',
+                settingsThinking: 'medium',
+                settingsTemp: 0.7,
+                settingsMaxTokens: 0
             };
 
             var state = {
@@ -858,6 +1024,9 @@ export function getWebviewContent(
                 visibleThreadIds: [],
                 threads: []
             };
+
+            var collapseCompleted = true;
+            var collapseOverrides = Object.create(null); // threadId -> true/false manual override
 
             function getThreadById(threadId) {
                 for (var i = 0; i < state.threads.length; i++) {
@@ -888,6 +1057,17 @@ export function getWebviewContent(
 
             function escapeAttr(text) {
                 return escapeHtml(text).replace(/"/g, '&quot;');
+            }
+
+            function linkifyFilePaths(html) {
+                // Match file paths inside <code> tags: e.g. <code>src/foo/bar.ts</code> or <code>src/foo/bar.ts:42</code>
+                var filePathRegex = /(<code>)((?:[a-zA-Z]:[\\/]|\/|\.{0,2}\/)?(?:[\w.@-]+\/)+[\w.@-]+\.[a-zA-Z]{1,10}(?::(\d+))?)(<\/code>)/g;
+                return html.replace(filePathRegex, function(_match, openTag, fullText, lineNum, closeTag) {
+                    var filePath = lineNum ? fullText.slice(0, fullText.lastIndexOf(':')) : fullText;
+                    return openTag + '<span class="file-link" data-file-path="' + escapeAttr(filePath) + '"' +
+                        (lineNum ? ' data-line="' + escapeAttr(lineNum) + '"' : '') +
+                        '>' + escapeHtml(fullText) + '</span>' + closeTag;
+                });
             }
 
             function autoResizeTextarea(textarea) {
@@ -980,8 +1160,10 @@ export function getWebviewContent(
                 var summary = document.createElement('summary');
                 summary.innerHTML =
                     '<span class="message-tool-summary">' +
-                        '<span>Tools</span>' +
-                        '<span class="message-tool-count">' + entries.length + '</span>' +
+                        '<svg class="message-tool-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                        '<span class="message-tool-icon">&#9881;</span>' +
+                        '<span class="message-tool-label">Tools</span>' +
+                        '<span class="message-tool-count">(' + entries.length + ')</span>' +
                     '</span>' +
                     '<span class="message-tool-status">' + escapeHtml(status) + '</span>';
                 node.appendChild(summary);
@@ -1114,6 +1296,47 @@ export function getWebviewContent(
                 '</div>';
             }
 
+            function renderSettingsDropdown(thread) {
+                var visible = composerUi.threadId === thread.id && composerUi.dropdown === 'settings';
+                var thinkingLevels = ['none', 'low', 'medium', 'high'];
+                var thinkingOptions = thinkingLevels.map(function(level) {
+                    return '<option value="' + level + '"' +
+                        (composerUi.settingsThinking === level ? ' selected' : '') + '>' +
+                        level.charAt(0).toUpperCase() + level.slice(1) + '</option>';
+                }).join('');
+
+                return '<div class="settings-dropdown' + (visible ? ' visible' : '') + '">' +
+                    '<div class="settings-row">' +
+                        '<span class="settings-label">Thinking</span>' +
+                        '<div class="settings-control">' +
+                            '<select data-setting="thinking" data-thread-id="' + thread.id + '">' +
+                                thinkingOptions +
+                            '</select>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="settings-row">' +
+                        '<span class="settings-label">Temperature</span>' +
+                        '<div class="settings-control" style="display:flex;align-items:center;gap:6px">' +
+                            '<input type="range" min="0" max="2" step="0.1"' +
+                                ' value="' + composerUi.settingsTemp + '"' +
+                                ' data-setting="temperature" data-thread-id="' + thread.id + '">' +
+                            '<span class="settings-value">' + composerUi.settingsTemp.toFixed(1) + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="settings-row">' +
+                        '<span class="settings-label">Max Tokens</span>' +
+                        '<div class="settings-control" style="display:flex;align-items:center;gap:6px">' +
+                            '<input type="range" min="0" max="16384" step="256"' +
+                                ' value="' + composerUi.settingsMaxTokens + '"' +
+                                ' data-setting="maxTokens" data-thread-id="' + thread.id + '">' +
+                            '<span class="settings-value">' +
+                                (composerUi.settingsMaxTokens > 0 ? formatTokenCount(composerUi.settingsMaxTokens) : 'auto') +
+                            '</span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }
+
             function renderAttachments(thread) {
                 return (thread.pendingAttachments || []).map(function(file, index) {
                     return '<span class="att-pill">' +
@@ -1158,6 +1381,7 @@ export function getWebviewContent(
                     renderSlashDropdown(thread.id) +
                     renderChatTypeDropdown(thread) +
                     renderModelDropdown(thread) +
+                    renderSettingsDropdown(thread) +
                     '<div class="composer-card' + (composerUi.dragThreadId === thread.id ? ' drag-active' : '') + '" data-thread-id="' + thread.id + '">' +
                         '<div class="drop-overlay' + (composerUi.dragThreadId === thread.id ? ' visible' : '') + '">' +
                             'Drop files to attach to this thread' +
@@ -1176,6 +1400,10 @@ export function getWebviewContent(
                                 thread.id + '" title="Model">' +
                                 '<span>' + escapeHtml(thread.currentModel || 'codex') + '</span>' +
                                 '<span>&#x25BE;</span>' +
+                            '</button>' +
+                            '<button class="dropdown-trigger" data-action="toggle-settings" data-thread-id="' +
+                                thread.id + '" title="Settings">' +
+                                '<span>&#x2699;</span>' +
                             '</button>' +
                         '</div>' +
                         '<textarea class="composer-input" data-thread-id="' + thread.id + '"' +
@@ -1197,6 +1425,7 @@ export function getWebviewContent(
                                     (hasVal ? '~' + formatTokenCount(est) + ' tokens' : '') +
                                 '</span>';
                             })() +
+                            (messageQueue[thread.id] ? '<span class="queued-indicator" title="Message queued">queued</span>' : '') +
                             '<button class="btn-send' + (thread.isStreaming ? ' streaming' : '') + '"' +
                                 ' data-action="' + (thread.isStreaming ? 'cancel' : 'send') + '"' +
                                 ' data-thread-id="' + thread.id + '"' +
@@ -1208,10 +1437,33 @@ export function getWebviewContent(
                 '</div>';
             }
 
+            function shouldCollapseThread(thread) {
+                // Only collapse in 1x1 with multiple threads
+                if (currentDimension !== '1x1' || state.threads.length <= 1) {
+                    return false;
+                }
+                // Manual override takes precedence
+                if (thread.id in collapseOverrides) {
+                    return collapseOverrides[thread.id];
+                }
+                // Active thread is never auto-collapsed
+                if (thread.id === state.activeThreadId) {
+                    return false;
+                }
+                // Auto-collapse if setting enabled and thread is completed/idle (not running)
+                if (collapseCompleted && !thread.isStreaming && (thread.status === 'complete' || thread.status === 'error' || thread.status === 'cancelled')) {
+                    return true;
+                }
+                return false;
+            }
+
             function renderPane(thread) {
                 var pane = document.createElement('section');
                 var statusClass = (thread.status || 'idle').toLowerCase();
-                pane.className = 'pane' + (thread.id === state.activeThreadId ? ' active' : '');
+                var isCollapsed = shouldCollapseThread(thread);
+                pane.className = 'pane' +
+                    (thread.id === state.activeThreadId ? ' active' : '') +
+                    (isCollapsed ? ' collapsed' : '');
                 pane.dataset.threadId = thread.id;
 
                 var sourceClass = (thread.source || 'API').toLowerCase().replace(/[^a-z]/g, '');
@@ -1241,7 +1493,9 @@ export function getWebviewContent(
                             '</div>' +
                         '</div>' +
                         '<div class="pane-actions">' +
-                            '<button class="pane-btn" data-action="focus" data-thread-id="' + thread.id + '">Focus</button>' +
+                            (currentDimension === '1x1' && state.threads.length > 1
+                                ? '<button class="pane-collapse-btn" data-action="toggleCollapse" data-thread-id="' + thread.id + '" title="' + (isCollapsed ? 'Expand' : 'Collapse') + '">' + (isCollapsed ? '&#x25B6;' : '&#x25BC;') + '</button>'
+                                : '') +
                             '<button class="pane-btn" data-action="export" data-thread-id="' + thread.id + '">Export</button>' +
                             '<button class="pane-btn" data-action="clear" data-thread-id="' + thread.id + '">Clear</button>' +
                             '<button class="pane-btn" data-action="close" data-thread-id="' + thread.id + '">Close</button>' +
@@ -1267,7 +1521,7 @@ export function getWebviewContent(
                             node = renderToolMessage(message);
                         } else if (message.role === 'assistant') {
                             node.className = 'message message-assistant';
-                            node.innerHTML = message.html || escapeHtml(message.content || '');
+                            node.innerHTML = linkifyFilePaths(message.html || escapeHtml(message.content || ''));
                         } else if (message.role === 'error') {
                             node.className = 'message message-error';
                             node.textContent = message.content || '';
@@ -1280,7 +1534,8 @@ export function getWebviewContent(
 
                     if (thread.pendingAssistantText) {
                         var pending = document.createElement('div');
-                        pending.className = 'message message-assistant';
+                        pending.className = 'message message-assistant message-pending';
+                        pending.setAttribute('data-thread-id', thread.id);
                         pending.textContent = thread.pendingAssistantText;
                         body.appendChild(pending);
                     }
@@ -1317,6 +1572,11 @@ export function getWebviewContent(
                 Object.keys(drafts).forEach(function(threadId) {
                     if (!valid[threadId]) {
                         delete drafts[threadId];
+                    }
+                });
+                Object.keys(collapseOverrides).forEach(function(threadId) {
+                    if (!valid[threadId]) {
+                        delete collapseOverrides[threadId];
                     }
                 });
             }
@@ -1501,7 +1761,15 @@ export function getWebviewContent(
             function sendThread(threadId) {
                 var thread = getThreadById(threadId);
                 var raw = getDraft(threadId).trim();
-                if (!thread || !raw || thread.isStreaming) {
+                if (!thread || !raw) {
+                    return;
+                }
+                if (thread.isStreaming) {
+                    messageQueue[threadId] = raw;
+                    setDraft(threadId, '');
+                    clearAtMention();
+                    closeComposerDropdowns();
+                    renderState({ threadId: threadId, selectionStart: 0, selectionEnd: 0 });
                     return;
                 }
 
@@ -1560,6 +1828,26 @@ export function getWebviewContent(
                 });
             }
 
+            function rebuildDimensionOptions(threadCount) {
+                var current = dimensionSelect.value;
+                dimensionSelect.innerHTML = '';
+                for (var c = 1; c <= threadCount; c++) {
+                    if (threadCount % c === 0) {
+                        var r = threadCount / c;
+                        var val = c + 'x' + r;
+                        var opt = document.createElement('option');
+                        opt.value = val;
+                        opt.textContent = val;
+                        dimensionSelect.appendChild(opt);
+                    }
+                }
+                if (dimensionSelect.querySelector('option[value="' + current + '"]')) {
+                    dimensionSelect.value = current;
+                } else {
+                    dimensionSelect.value = dimensionSelect.options[0] ? dimensionSelect.options[0].value : '1x1';
+                }
+            }
+
             function updateGridDimension(dimension) {
                 var parts = dimension.split('x');
                 var cols = parseInt(parts[0], 10) || 1;
@@ -1574,11 +1862,37 @@ export function getWebviewContent(
                 vscode.postMessage({ type: 'setDimension', dimension: currentDimension });
             });
 
+            btnFlip.addEventListener('click', function() {
+                var parts = currentDimension.split('x');
+                var flipped = parts[1] + 'x' + parts[0];
+                if (dimensionSelect.querySelector('option[value="' + flipped + '"]')) {
+                    dimensionSelect.value = flipped;
+                    currentDimension = flipped;
+                    updateGridDimension(currentDimension);
+                    vscode.postMessage({ type: 'setDimension', dimension: currentDimension });
+                }
+            });
+
             paneGrid.addEventListener('click', function(event) {
+                var fileLink = event.target.closest('.file-link');
+                if (fileLink) {
+                    event.stopPropagation();
+                    vscode.postMessage({
+                        type: 'openFile',
+                        filePath: fileLink.getAttribute('data-file-path'),
+                        line: fileLink.getAttribute('data-line') || ''
+                    });
+                    return;
+                }
+
                 var actionEl = event.target.closest('[data-action]');
                 var pane = event.target.closest('.pane');
                 if (pane && !actionEl) {
-                    setActiveThread(pane.getAttribute('data-thread-id'));
+                    var clickedId = pane.getAttribute('data-thread-id');
+                    if (pane.classList.contains('collapsed')) {
+                        collapseOverrides[clickedId] = false;
+                    }
+                    setActiveThread(clickedId);
                     return;
                 }
 
@@ -1592,8 +1906,10 @@ export function getWebviewContent(
                     setActiveThread(threadId);
                 }
 
-                if (action === 'focus') {
-                    renderState({ threadId: threadId, selectionStart: getDraft(threadId).length, selectionEnd: getDraft(threadId).length });
+                if (action === 'toggleCollapse') {
+                    var wasCollapsed = shouldCollapseThread(getThreadById(threadId) || {});
+                    collapseOverrides[threadId] = !wasCollapsed;
+                    renderState(captureComposerFocus());
                     return;
                 }
                 if (action === 'clear') {
@@ -1634,6 +1950,10 @@ export function getWebviewContent(
                 }
                 if (action === 'toggle-model') {
                     toggleDropdown(threadId, 'model');
+                    return;
+                }
+                if (action === 'toggle-settings') {
+                    toggleDropdown(threadId, 'settings');
                     return;
                 }
                 if (action === 'select-chat-type') {
@@ -1702,6 +2022,25 @@ export function getWebviewContent(
                         selectionStart: search.selectionStart,
                         selectionEnd: search.selectionEnd
                     });
+                }
+            });
+
+            paneGrid.addEventListener('change', function(event) {
+                var el = event.target;
+                var setting = el.getAttribute('data-setting');
+                if (!setting) { return; }
+                if (setting === 'thinking') {
+                    composerUi.settingsThinking = el.value;
+                    vscode.postMessage({ type: 'setSetting', key: 'chat.thinkingLevel', value: el.value });
+                    renderState(captureComposerFocus());
+                } else if (setting === 'temperature') {
+                    composerUi.settingsTemp = parseFloat(el.value);
+                    vscode.postMessage({ type: 'setSetting', key: 'chat.temperature', value: parseFloat(el.value) });
+                    renderState(captureComposerFocus());
+                } else if (setting === 'maxTokens') {
+                    composerUi.settingsMaxTokens = parseInt(el.value, 10);
+                    vscode.postMessage({ type: 'setSetting', key: 'chat.maxTokens', value: parseInt(el.value, 10) });
+                    renderState(captureComposerFocus());
                 }
             });
 
@@ -1909,18 +2248,85 @@ export function getWebviewContent(
                 if (message.type === 'onboardingDone') {
                     return;
                 }
+                if (message.type === 'textUpdate') {
+                    // Lightweight incremental update — only touch the pending element
+                    var tid = message.threadId;
+                    var pendingEl = paneGrid.querySelector('.message-pending[data-thread-id="' + tid + '"]');
+                    if (pendingEl) {
+                        pendingEl.textContent = message.text;
+                    } else {
+                        // First chunk — create the pending element inside the body
+                        var paneBody = paneGrid.querySelector('.pane[data-thread-id="' + tid + '"] .pane-body');
+                        if (paneBody) {
+                            // Remove empty placeholder if present
+                            var emptyEl = paneBody.querySelector('.pane-empty');
+                            if (emptyEl) { emptyEl.remove(); }
+                            var newPending = document.createElement('div');
+                            newPending.className = 'message message-assistant message-pending';
+                            newPending.setAttribute('data-thread-id', tid);
+                            newPending.textContent = message.text;
+                            paneBody.appendChild(newPending);
+                        }
+                    }
+                    // Update the thread state in memory so full renders stay in sync
+                    for (var si = 0; si < state.threads.length; si++) {
+                        if (state.threads[si].id === tid) {
+                            state.threads[si].pendingAssistantText = message.text;
+                            state.threads[si].isStreaming = true;
+                            state.threads[si].status = 'running';
+                            break;
+                        }
+                    }
+                    // Auto-scroll if user hasn't scrolled up
+                    var scrollBody = paneGrid.querySelector('.pane[data-thread-id="' + tid + '"] .pane-body');
+                    if (scrollBody) { scrollPaneToBottom(scrollBody, tid); }
+                    // Update status pill and send button without full rebuild
+                    var paneEl = paneGrid.querySelector('.pane[data-thread-id="' + tid + '"]');
+                    if (paneEl) {
+                        var statusPill = paneEl.querySelector('.pane-status');
+                        if (statusPill && !statusPill.classList.contains('running')) {
+                            statusPill.className = 'pane-pill pane-status running';
+                            statusPill.textContent = 'Running';
+                        }
+                        var sendBtn = paneEl.querySelector('.btn-send');
+                        if (sendBtn && !sendBtn.classList.contains('streaming')) {
+                            sendBtn.classList.add('streaming');
+                            sendBtn.setAttribute('data-action', 'cancel');
+                            sendBtn.setAttribute('title', 'Stop');
+                            sendBtn.innerHTML = '&#x25A0;';
+                        }
+                        var statusSpan = paneEl.querySelector('.composer-status');
+                        if (statusSpan) { statusSpan.textContent = 'Generating response'; }
+                    }
+                    return;
+                }
                 if (message.type === 'state') {
                     var focus = captureComposerFocus();
                     state.activeThreadId = message.activeThreadId || '';
                     state.visibleThreadIds = message.visibleThreadIds || [];
                     state.threads = message.threads || [];
                     availableModels = message.models || [];
+                    if (typeof message.collapseCompleted === 'boolean') {
+                        collapseCompleted = message.collapseCompleted;
+                    }
+                    rebuildDimensionOptions(state.threads.length || 1);
                     if (message.dimension) {
                         currentDimension = message.dimension;
                         dimensionSelect.value = currentDimension;
                         updateGridDimension(currentDimension);
                     }
                     renderState(focus);
+
+                    // Drain queued messages for threads that finished streaming
+                    for (var qi = 0; qi < state.threads.length; qi++) {
+                        var t = state.threads[qi];
+                        if (!t.isStreaming && messageQueue[t.id]) {
+                            var queued = messageQueue[t.id];
+                            delete messageQueue[t.id];
+                            setDraft(t.id, queued);
+                            sendThread(t.id);
+                        }
+                    }
                 }
             });
 
@@ -1996,6 +2402,8 @@ export function getWebviewContent(
                 return paths;
             }
 
+            renderState();
+            vscode.postMessage({ type: 'requestState' });
             vscode.postMessage({ type: 'requestRecommendations' });
         })();
     </script>

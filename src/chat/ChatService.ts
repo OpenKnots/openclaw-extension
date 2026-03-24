@@ -62,10 +62,22 @@ export class ChatService {
         const configuredPermissions = config.get<string>('chat.permissions', 'approve-reads');
         const permissions = ChatService.getPermissionsForChatType(chatType, configuredPermissions);
 
-        const prefix = ChatService.CHAT_TYPE_PREFIXES[chatType] ?? '';
-        const fullPrompt = prefix + prompt;
+        const thinkingLevel = config.get<string>('chat.thinkingLevel', 'medium');
+        const temperature = config.get<number>('chat.temperature', 0.7);
+        const maxTokens = config.get<number>('chat.maxTokens', 0);
+        const systemPrompt = config.get<string>('chat.systemPrompt', '');
 
-        const args = this.buildArgs(model, permissions, fullPrompt);
+        const prefix = ChatService.CHAT_TYPE_PREFIXES[chatType] ?? '';
+        let fullPrompt = prefix + prompt;
+        if (systemPrompt) {
+            fullPrompt = systemPrompt + '\n\n' + fullPrompt;
+        }
+
+        const args = this.buildArgs(model, permissions, fullPrompt, {
+            thinkingLevel,
+            temperature,
+            maxTokens,
+        });
 
         log.info(`spawn acpx ${args.join(' ')} (cwd=${cwd})`);
         const child = spawn('acpx', args, {
@@ -157,7 +169,12 @@ export class ChatService {
         return configuredPermissions;
     }
 
-    private buildArgs(agent: string, permissions: string, prompt: string): string[] {
+    private buildArgs(
+        agent: string,
+        permissions: string,
+        prompt: string,
+        options?: { thinkingLevel?: string; temperature?: number; maxTokens?: number }
+    ): string[] {
         const args: string[] = [];
 
         args.push('--format', 'json');
@@ -165,6 +182,18 @@ export class ChatService {
         const permFlag = this.permissionFlag(permissions);
         if (permFlag) {
             args.push(permFlag);
+        }
+
+        if (options?.thinkingLevel && options.thinkingLevel !== 'none') {
+            args.push('--thinking', options.thinkingLevel);
+        }
+
+        if (options?.temperature !== undefined && options.temperature !== 0.7) {
+            args.push('--temperature', String(options.temperature));
+        }
+
+        if (options?.maxTokens && options.maxTokens > 0) {
+            args.push('--max-tokens', String(options.maxTokens));
         }
 
         if (agent && agent !== 'codex') {

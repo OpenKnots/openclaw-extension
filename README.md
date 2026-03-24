@@ -24,8 +24,8 @@ Quick, super-simple overview: see `SUMMARY.md`.
 
 ### 1. Install Node.js (*required*)
 
-- Download the latest LTS from https://nodejs.org
-- **Verify**: `node -v` shows `v22.x` or newer
+- Download from https://nodejs.org — Node 24 recommended (Node 22.16+ also supported)
+- **Verify**: `node -v` shows `v22.16` or newer
 
 ### 2. Install OpenClaw
 
@@ -39,10 +39,14 @@ npm install -g openclaw@latest
 
 ```
 openclaw onboard --install-daemon
-openclaw gateway --port 18789
 ```
 
-**Open Dashboard**: `http://127.0.0.1:18789/`
+Verify the Gateway is running and open the dashboard:
+
+```
+openclaw gateway status
+openclaw dashboard
+```
 
 ### 4. Log in to a channel (*optional*)
 
@@ -70,7 +74,7 @@ The setup flow can also detect missing Node.js, guide you to install the latest 
 Run the command palette action **OpenClaw: Model Setup Wizard** to:
 
 - Run the OpenClaw onboarding wizard in a terminal (`openclaw onboard`)
-- Choose a provider (`OpenAI`, `Anthropic`, or `Local Pi RPC`)
+- Choose a provider (OpenAI, Anthropic, Google Gemini, Ollama, Local Pi RPC, or custom)
 - Open your config and auth profile files for quick edits
 - Verify health with `openclaw status` and `openclaw health`
 
@@ -116,20 +120,21 @@ By default, OpenClaw uses its bundled Pi binary in RPC mode. If you want a diffe
 
 If you previously installed the legacy CLI, update to the new `openclaw` name using the installer or npm, then run `openclaw doctor`:
 
-- Recommended (macOS/Linux): `curl -fsSL https://openclaw.bot/install.sh | bash`
+- Recommended (macOS/Linux): `curl -fsSL https://openclaw.ai/install.sh | bash`
 - Global npm: `npm install -g openclaw@latest`
 
 > *See https://docs.openclaw.ai/install/updating for full update guidance.*
 
 ### "node: command not found" or Node too old
 
-- Install the latest LTS from https://nodejs.org/
-- Verify with `node -v` (needs v22+)
+- Install from https://nodejs.org/ — Node 24 recommended (Node 22.16+ also supported)
+- Verify with `node -v` (needs v22.16+)
 
 ### Gateway not running
 
-- **Run**: `openclaw gateway --port 18789`
-- **Open**: `http://127.0.0.1:18789/`
+- **Check**: `openclaw gateway status`
+- **Restart**: `openclaw gateway restart`
+- **Dashboard**: `openclaw dashboard`
 
 ### No status bar item
 
@@ -143,10 +148,10 @@ If you previously installed the legacy CLI, update to the new `openclaw` name us
 
 ## Development
 
-1. Install dependencies: `bun install`
-2. Compile: `bun run compile`
+1. Install dependencies: `pnpm install`
+2. Compile: `pnpm run compile`
 3. Press F5 to launch the Extension Development Host
-4. Publish (prepublish + VSCE + Open VSX): `bun run publish:all:script`
+4. Publish (prepublish + VSCE + Open VSX): `pnpm run publish:all`
 
 ## License
 

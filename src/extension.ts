@@ -17,8 +17,17 @@ const OPENCLAW_ONBOARD_DOCS_URL = 'https://docs.openclaw.ai/start/wizard';
 const OPENCLAW_DASHBOARD_URL = 'http://127.0.0.1:18789/';
 const OPENCLAW_UPDATE_DOCS_URL = 'https://docs.openclaw.ai/install/updating';
 const OPENCLAW_SECURITY_DOCS_URL = 'https://docs.openclaw.ai/gateway/security';
-const OPENCLAW_INSTALL_SCRIPT = 'curl -fsSL https://openclaw.bot/install.sh | bash';
+const OPENCLAW_INSTALL_SCRIPT = 'curl -fsSL https://openclaw.ai/install.sh | bash';
+const OPENCLAW_INSTALL_PS1 = 'iwr -useb https://openclaw.ai/install.ps1 | iex';
 const OPENCLAW_NPM_INSTALL = 'npm install -g openclaw@latest';
+const OPENCLAW_PROVIDERS_DOCS_URL = 'https://docs.openclaw.ai/providers';
+const PROVIDER_DOCS: Record<string, string> = {
+    openai: 'https://docs.openclaw.ai/providers/openai',
+    anthropic: 'https://docs.openclaw.ai/providers/anthropic',
+    google: 'https://docs.openclaw.ai/providers/google',
+    ollama: 'https://docs.openclaw.ai/providers/ollama',
+    local: 'https://docs.openclaw.ai/pi'
+};
 const LEGACY_CLI_ALIASES = new Set(['molt', 'molt.exe', 'clawdbot', 'clawdbot.exe']);
 const STATUS_LABEL = 'OpenClaw';
 type QuickPickOption<T extends string> = vscode.QuickPickItem & { value: T };
@@ -124,6 +133,21 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
     context.subscriptions.push(hardeningAccessSummaryCommand);
+
+    let doctorCommand = vscode.commands.registerCommand('openclaw.doctor', async () => {
+        await runCliInTerminal('openclaw doctor', 'Running openclaw doctor.');
+    });
+    context.subscriptions.push(doctorCommand);
+
+    let updateCommand = vscode.commands.registerCommand('openclaw.update', async () => {
+        await runCliInTerminal('openclaw update', 'Running openclaw update.');
+    });
+    context.subscriptions.push(updateCommand);
+
+    let configureCommand = vscode.commands.registerCommand('openclaw.configure', async () => {
+        await runCliInTerminal('openclaw configure', 'Running openclaw configure.');
+    });
+    context.subscriptions.push(configureCommand);
 
     let toolsRefreshCommand = vscode.commands.registerCommand('openclaw.tools.refresh', async () => {
         await overviewProvider?.refreshTools();
@@ -1186,14 +1210,38 @@ function getInstallOptions(): Array<{
     const isWindows = platform === 'win32';
     const npmCommand = OPENCLAW_NPM_INSTALL;
 
-    return [
+    const options: Array<{
+        label: string;
+        description?: string;
+        detail?: string;
+        command?: string;
+        action?: 'docs' | 'node' | 'nodeDocs';
+    }> = [];
+
+    if (isWindows) {
+        options.push({
+            label: 'Install via PowerShell script (recommended)',
+            description: 'Detects OS, installs Node if needed, launches onboarding',
+            detail: OPENCLAW_INSTALL_PS1,
+            command: OPENCLAW_INSTALL_PS1
+        });
+    } else {
+        options.push({
+            label: 'Install via shell script (recommended)',
+            description: 'Detects OS, installs Node if needed, launches onboarding',
+            detail: OPENCLAW_INSTALL_SCRIPT,
+            command: OPENCLAW_INSTALL_SCRIPT
+        });
+    }
+
+    options.push(
         {
             label: 'Install Node.js (required for npm install)',
             description: isWindows ? 'Windows: recommended via winget' : 'macOS/Linux: install Node.js first',
             action: 'node'
         },
         {
-            label: 'Install via npm (recommended)',
+            label: 'Install via npm',
             description: isWindows ? 'Works on Windows with Node.js' : 'Works on macOS and Linux with Node.js',
             detail: npmCommand,
             command: npmCommand
@@ -1203,13 +1251,15 @@ function getInstallOptions(): Array<{
             description: 'View all install options',
             action: 'docs'
         }
-    ];
+    );
+
+    return options;
 }
 
 async function runNodeSetupFlow() {
     const options = getNodeInstallOptions();
     const pick = await vscode.window.showQuickPick(options, {
-        placeHolder: 'Install the latest stable Node.js (LTS)'
+        placeHolder: 'Install Node.js (Node 24 recommended, 22.16+ supported)'
     });
 
     if (!pick) {
@@ -1322,6 +1372,32 @@ async function runSetupCommand(command: string) {
     terminalInstance.sendText(command);
 }
 
+async function runCliInTerminal(command: string, message: string) {
+    const executable = command.split(/\s+/)[0];
+    if (executable === 'openclaw' || executable === 'openclaw.exe') {
+        const hasNode = await isCommandAvailable('node');
+        if (!hasNode) {
+            await showMissingNodeMessage();
+            return;
+        }
+        const available = await isCommandAvailable(executable);
+        if (!available) {
+            const action = await vscode.window.showErrorMessage(
+                `Command not found: ${executable}. Install OpenClaw first.`,
+                'Install CLI'
+            );
+            if (action === 'Install CLI') {
+                await runSetupFlow();
+            }
+            return;
+        }
+    }
+    const terminalInstance = getOpenClawTerminal();
+    terminalInstance.show(true);
+    terminalInstance.sendText(command);
+    vscode.window.showInformationMessage(message);
+}
+
 async function showOnboardingOptions(): Promise<'run' | 'runNoDaemon' | 'docs' | 'skip' | undefined> {
     const items: QuickPickOption<'run' | 'runNoDaemon' | 'docs' | 'skip'>[] = [
         {
@@ -1351,8 +1427,10 @@ async function showOnboardingOptions(): Promise<'run' | 'runNoDaemon' | 'docs' |
     return pick?.value;
 }
 
-async function showProviderOptions(): Promise<'openai' | 'anthropic' | 'local' | undefined> {
-    const items: QuickPickOption<'openai' | 'anthropic' | 'local'>[] = [
+type ProviderKey = 'openai' | 'anthropic' | 'google' | 'ollama' | 'local' | 'other';
+
+async function showProviderOptions(): Promise<ProviderKey | undefined> {
+    const items: QuickPickOption<ProviderKey>[] = [
         {
             label: 'OpenAI',
             description: 'API key or OAuth-based setup',
@@ -1364,9 +1442,24 @@ async function showProviderOptions(): Promise<'openai' | 'anthropic' | 'local' |
             value: 'anthropic'
         },
         {
+            label: 'Google (Gemini)',
+            description: 'API key or OAuth-based setup',
+            value: 'google'
+        },
+        {
+            label: 'Ollama (local models)',
+            description: 'Run models locally with Ollama',
+            value: 'ollama'
+        },
+        {
             label: 'Local Pi RPC (default)',
             description: 'Use bundled Pi binary in RPC mode',
             value: 'local'
+        },
+        {
+            label: 'Other / Custom provider',
+            description: 'OpenAI-compatible, Anthropic-compatible, or 30+ more',
+            value: 'other'
         }
     ];
     const pick = await vscode.window.showQuickPick(items, {
@@ -1375,9 +1468,20 @@ async function showProviderOptions(): Promise<'openai' | 'anthropic' | 'local' |
     return pick?.value;
 }
 
-async function handleProviderSelection(provider: 'openai' | 'anthropic' | 'local') {
-    const label =
-        provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'Local Pi RPC';
+async function handleProviderSelection(provider: ProviderKey) {
+    if (provider === 'other') {
+        await vscode.env.openExternal(vscode.Uri.parse(OPENCLAW_PROVIDERS_DOCS_URL));
+        return;
+    }
+
+    const labels: Record<string, string> = {
+        openai: 'OpenAI',
+        anthropic: 'Anthropic',
+        google: 'Google (Gemini)',
+        ollama: 'Ollama',
+        local: 'Local Pi RPC'
+    };
+    const label = labels[provider] ?? provider;
     const action = await vscode.window.showQuickPick(
         [
             { label: `Open ${label} setup docs`, value: 'docs' },
@@ -1393,7 +1497,8 @@ async function handleProviderSelection(provider: 'openai' | 'anthropic' | 'local
     }
 
     if (action.value === 'docs') {
-        await openDocs();
+        const url = PROVIDER_DOCS[provider] ?? OPENCLAW_PROVIDERS_DOCS_URL;
+        await vscode.env.openExternal(vscode.Uri.parse(url));
         return;
     }
 
@@ -1410,7 +1515,7 @@ async function handleProviderSelection(provider: 'openai' | 'anthropic' | 'local
 async function runPostSetupChecks() {
     const pick = await vscode.window.showQuickPick(
         [
-            { label: 'Run status and health checks', value: 'run' },
+            { label: 'Run doctor + status checks', value: 'run' },
             { label: 'Open dashboard', value: 'dashboard' },
             { label: 'Skip checks for now', value: 'skip' }
         ] as QuickPickOption<'run' | 'dashboard' | 'skip'>[],
@@ -1428,9 +1533,9 @@ async function runPostSetupChecks() {
 
     const terminalInstance = getOpenClawTerminal();
     terminalInstance.show(true);
-    terminalInstance.sendText('openclaw status');
-    terminalInstance.sendText('openclaw health');
-    vscode.window.showInformationMessage('Running OpenClaw status and health checks.');
+    terminalInstance.sendText('openclaw doctor');
+    terminalInstance.sendText('openclaw gateway status');
+    vscode.window.showInformationMessage('Running OpenClaw doctor and gateway status checks.');
 }
 
 async function copyInstallCommand() {
@@ -1545,7 +1650,7 @@ async function ensureParentDirectory(uri: vscode.Uri) {
 async function showMissingNodeMessage() {
     const installCommand = getNodeInstallCommandForPlatform();
     const action = await vscode.window.showErrorMessage(
-        'Node.js is required to run the OpenClaw CLI. Install the latest stable Node.js (LTS) and try again.',
+        'Node.js is required to run the OpenClaw CLI. Node 24 recommended (Node 22.16+ also supported).',
         'Install Node.js',
         'More options...'
     );
@@ -1789,6 +1894,30 @@ class OverviewTreeProvider implements vscode.TreeDataProvider<OverviewItem> {
                     command: {
                         command: 'openclaw.hardening.runStatus',
                         title: 'Run OpenClaw status'
+                    }
+                }),
+                new OverviewItem('Run doctor', {
+                    description: 'Health checks + quick fixes',
+                    icon: new vscode.ThemeIcon('stethoscope'),
+                    command: {
+                        command: 'openclaw.doctor',
+                        title: 'Run OpenClaw doctor'
+                    }
+                }),
+                new OverviewItem('Update OpenClaw', {
+                    description: 'Fetch latest version + restart',
+                    icon: new vscode.ThemeIcon('cloud-download'),
+                    command: {
+                        command: 'openclaw.update',
+                        title: 'Update OpenClaw'
+                    }
+                }),
+                new OverviewItem('Reconfigure', {
+                    description: 'Re-run guided configuration',
+                    icon: new vscode.ThemeIcon('settings-gear'),
+                    command: {
+                        command: 'openclaw.configure',
+                        title: 'Reconfigure OpenClaw'
                     }
                 }),
                 new OverviewItem('Open dashboard', {

@@ -12,6 +12,8 @@ import {
     ContextType,
 } from './slashCommands';
 
+const log = vscode.window.createOutputChannel('OpenClaw Chat', { log: true });
+
 type ChatMessage = { role: 'user' | 'assistant' | 'error'; content: string; html?: string };
 type Attachment = { name: string; path: string };
 
@@ -59,6 +61,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken
     ): void {
+        log.info('resolveWebviewView()');
         this.sidebarView = webviewView;
 
         webviewView.webview.options = {
@@ -523,7 +526,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private async renderMarkdown(text: string): Promise<string> {
         try {
             return await markdownToHTML(text, { sanitize: true });
-        } catch {
+        } catch (err) {
+            log.warn('markdownToHTML failed, using fallback', err);
             return this.escapeHtml(text);
         }
     }

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 
+const log = vscode.window.createOutputChannel('OpenClaw Agent', { log: true });
+
 export type ChatEvent =
     | { type: 'text'; text: string }
     | { type: 'toolCall'; title: string; status: string }
@@ -33,6 +35,7 @@ export class ChatService {
 
         const args = this.buildArgs(model, permissions, fullPrompt);
 
+        log.info(`spawn acpx ${args.join(' ')} (cwd=${cwd})`);
         const child = spawn('acpx', args, {
             cwd,
             env: { ...process.env },
@@ -66,6 +69,7 @@ export class ChatService {
         });
 
         child.on('close', (code) => {
+            log.info(`acpx exited code=${code}`);
             if (stdoutLineBuffer.trim()) {
                 const event = this.parseLine(stdoutLineBuffer.trim());
                 if (event) {
@@ -79,6 +83,7 @@ export class ChatService {
 
             if (code !== 0 && code !== null) {
                 const errMsg = stderrBuffer.trim() || `acpx exited with code ${code}`;
+                log.error(`acpx error: ${errMsg}`);
                 onEvent({ type: 'error', message: errMsg });
             }
 
@@ -86,6 +91,7 @@ export class ChatService {
         });
 
         child.on('error', (err) => {
+            log.error('acpx spawn error', err);
             if (this.activeProcess === child) {
                 this.activeProcess = null;
             }

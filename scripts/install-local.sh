@@ -16,7 +16,7 @@ VERSION="$(node -p "require('./package.json').version")"
 VSIX="openclaw-extension-${VERSION}.vsix"
 
 echo "Packaging ${VSIX}..."
-${X_CMD} @vscode/vsce package -o "${VSIX}"
+${X_CMD} @vscode/vsce package --no-dependencies -o "${VSIX}"
 
 IDE="cursor"
 if ! command -v cursor >/dev/null 2>&1; then

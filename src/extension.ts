@@ -13,6 +13,8 @@ let isConnecting = false;
 let overviewProvider: OverviewTreeProvider | undefined;
 let chatViewProvider: ChatViewProvider | undefined;
 
+const log = vscode.window.createOutputChannel('OpenClaw', { log: true });
+
 const execAsync = promisify(exec);
 const OPENCLAW_DOCS_URL = 'https://docs.openclaw.ai/';
 const OPENCLAW_ONBOARD_DOCS_URL = 'https://docs.openclaw.ai/start/wizard';
@@ -59,9 +61,8 @@ type ToolEntry = {
 };
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('OpenClaw extension is now active');
+    log.info('activate() start');
 
-    // Create status bar item
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     statusBarItem.command = 'openclaw.connect';
     statusBarItem.name = STATUS_LABEL;
@@ -72,6 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
     setStatus('idle');
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
+    log.info('status bar created');
 
     // Register connect command
     let connectCommand = vscode.commands.registerCommand('openclaw.connect', async () => {
@@ -172,17 +174,21 @@ export function activate(context: vscode.ExtensionContext) {
     );
     context.subscriptions.push(toolsUninstallCommand);
 
+    log.info('commands registered');
+
     overviewProvider = new OverviewTreeProvider();
     const overviewView = vscode.window.createTreeView('openclaw.overview', {
         treeDataProvider: overviewProvider
     });
     context.subscriptions.push(overviewView);
     void overviewProvider.refreshTools();
+    log.info('overview tree view created');
 
     chatViewProvider = new ChatViewProvider(context.extensionUri, context);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );
+    log.info('chat view provider registered');
 
     context.subscriptions.push(
         vscode.commands.registerCommand('openclaw.chat.open', () => {
@@ -207,13 +213,12 @@ export function activate(context: vscode.ExtensionContext) {
     const autoConnect = config.get<boolean>('autoConnect', false);
 
     if (autoConnect) {
-        // Auto-connect on startup
+        log.info('auto-connect enabled, scheduling connect');
         setTimeout(() => {
             connect();
-        }, 1000); // Small delay to ensure everything is initialized
+        }, 1000);
     }
 
-    // Listen for terminal close events
     const terminalClosedDisposable = vscode.window.onDidCloseTerminal((closedTerminal) => {
         if (terminal && closedTerminal === terminal) {
             terminal = undefined;
@@ -227,6 +232,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
     context.subscriptions.push(terminalClosedDisposable);
+
+    log.info(`activate() complete — ${context.subscriptions.length} subscriptions`);
 }
 
 async function connect() {
@@ -236,11 +243,10 @@ async function connect() {
     }
 
     isConnecting = true;
+    log.info('connect() start');
     try {
-        // Update status to connecting
         setStatus('connecting');
 
-        // Detect OS and read configuration
         const platform = os.platform();
         const isWindows = platform === 'win32';
 
@@ -320,6 +326,7 @@ async function connect() {
         vscode.window.showInformationMessage('OpenClaw command sent.');
     } catch (error) {
         setStatus('error');
+        log.error('connect() failed', error);
         vscode.window.showErrorMessage(`Failed to connect: ${error}`);
     } finally {
         isConnecting = false;
@@ -1085,6 +1092,7 @@ function getHardeningMode(): HardeningMode {
 }
 
 export function deactivate() {
+    log.info('deactivate()');
     if (terminal) {
         terminal.dispose();
     }
@@ -1652,6 +1660,7 @@ async function openFileInEditor(filePath: string, createIfMissing: boolean, init
         await vscode.window.showTextDocument(document, { preview: false });
     } catch (error) {
         vscode.window.showErrorMessage(`Unable to open file: ${filePath}`);
+        console.error(error);
     }
 }
 

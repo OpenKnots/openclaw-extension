@@ -155,10 +155,12 @@
   },
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "node esbuild.mjs --production",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p ./ --noEmit",
     "pretest": "pnpm run compile && pnpm run lint",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src",
+    "test": "vitest run",
     "installLocal": "scripts/install-local.sh",
     "publish:vsce": "vsce publish",
     "publish:ovsx": "ovsx publish -p $OVSX_TOKEN",
@@ -169,11 +171,18 @@
     "@types/vscode": "~1.105.0",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
+    "esbuild": "^0.27.4",
     "eslint": "^9.39.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.1"
   },
   "dependencies": {
     "@create-markdown/core": "^2.0.0",
     "@create-markdown/preview": "^2.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

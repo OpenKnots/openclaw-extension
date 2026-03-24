@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify, TextDecoder, TextEncoder } from 'util';
+import { ChatViewProvider } from './chat/ChatViewProvider';
 
 let statusBarItem: vscode.StatusBarItem;
 let terminal: vscode.Terminal | undefined;
@@ -10,6 +11,7 @@ let setupTerminal: vscode.Terminal | undefined;
 let hardeningTerminal: vscode.Terminal | undefined;
 let isConnecting = false;
 let overviewProvider: OverviewTreeProvider | undefined;
+let chatViewProvider: ChatViewProvider | undefined;
 
 const execAsync = promisify(exec);
 const OPENCLAW_DOCS_URL = 'https://docs.openclaw.ai/';
@@ -176,6 +178,29 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(overviewView);
     void overviewProvider.refreshTools();
+
+    chatViewProvider = new ChatViewProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('openclaw.chat.open', () => {
+            vscode.commands.executeCommand(`${ChatViewProvider.viewType}.focus`);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('openclaw.chat.popOut', () => {
+            chatViewProvider?.popOut();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('openclaw.chat.newSession', () => {
+            chatViewProvider?.newSession();
+        })
+    );
 
     // Check auto-connect setting
     const config = vscode.workspace.getConfiguration('openclaw');
@@ -1069,6 +1094,7 @@ export function deactivate() {
     if (hardeningTerminal) {
         hardeningTerminal.dispose();
     }
+    chatViewProvider?.dispose();
 }
 
 function setStatus(state: 'idle' | 'connecting' | 'connected' | 'error') {

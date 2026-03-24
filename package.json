@@ -2,7 +2,7 @@
   "name": "openclaw-extension",
   "displayName": "OpenClaw Extension",
   "description": "Status bar connector for the OpenClaw CLI",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "publisher": "openknot",
   "author": {
     "name": "Val Alexander",
@@ -56,6 +56,18 @@
       {
         "command": "openclaw.hardening.showAccessSummary",
         "title": "OpenClaw: Hardening Access Summary"
+      },
+      {
+        "command": "openclaw.chat.open",
+        "title": "OpenClaw: Open Chat"
+      },
+      {
+        "command": "openclaw.chat.popOut",
+        "title": "OpenClaw: Pop Out Chat"
+      },
+      {
+        "command": "openclaw.chat.newSession",
+        "title": "OpenClaw: New Chat Session"
       }
     ],
     "viewsContainers": {
@@ -69,6 +81,11 @@
     },
     "views": {
       "openclaw": [
+        {
+          "id": "openclaw.chat",
+          "type": "webview",
+          "name": "Chat"
+        },
         {
           "id": "openclaw.overview",
           "name": "Overview"
@@ -98,6 +115,17 @@
           "type": "string",
           "default": "openclaw",
           "description": "Command prefix to run OpenClaw hardening (e.g. 'openclaw' or 'wsl openclaw')"
+        },
+        "openclaw.chat.agent": {
+          "type": "string",
+          "default": "codex",
+          "description": "Agent to use for chat sessions (e.g. 'codex', 'gemini', 'opencode')"
+        },
+        "openclaw.chat.permissions": {
+          "type": "string",
+          "enum": ["approve-reads", "approve-all", "deny-all"],
+          "default": "approve-reads",
+          "description": "Permission mode for chat agent: approve-reads (default), approve-all, or deny-all"
         }
       }
     }

@@ -17,6 +17,11 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
   set +a
 fi
 
+if [[ -z "${VSCE_PAT:-}" ]]; then
+  echo "VSCE_PAT is not set. Add it to .env or export it." >&2
+  exit 1
+fi
+
 if [[ -z "${OVSX_TOKEN:-}" ]]; then
   echo "OVSX_TOKEN is not set. Add it to .env or export it." >&2
   exit 1
@@ -33,7 +38,7 @@ echo "Packaging VSIX to ${VSIX_PATH}..."
 ${X_CMD} vsce package -o "${VSIX_PATH}"
 
 echo "Publishing to VS Code Marketplace (vsce)..."
-${X_CMD} vsce publish
+${X_CMD} vsce publish -p "${VSCE_PAT}"
 
 echo "Publishing to Open VSX (ovsx)..."
 ${X_CMD} ovsx publish -p "${OVSX_TOKEN}"

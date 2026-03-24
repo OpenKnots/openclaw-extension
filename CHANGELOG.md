@@ -6,6 +6,16 @@ Semantic Versioning.
 
 ## Unreleased
 
+## 0.1.0
+
+- Add a Chat panel in the OpenClaw sidebar for ephemeral gateway subagent conversations.
+- Spawn `acpx exec` with NDJSON streaming to chat with any codebase in the current workspace.
+- Support pop-out from sidebar to a standalone editor panel with full conversation transfer.
+- Stream assistant responses incrementally with tool-call badges shown inline.
+- Add `openclaw.chat.agent` and `openclaw.chat.permissions` settings for agent and permission configuration.
+- Register `OpenClaw: Open Chat`, `OpenClaw: Pop Out Chat`, and `OpenClaw: New Chat Session` commands.
+- Add `.env.example` for `VSCE_PAT` and `OVSX_TOKEN` and update publish script to pass PAT explicitly.
+
 ## 0.0.9
 
 - Patch release.

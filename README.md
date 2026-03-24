@@ -10,6 +10,7 @@ Quick, super-simple overview: see `SUMMARY.md`.
 
 ## Features
 
+- **`Chat Panel`:** Ask questions about any codebase via ephemeral gateway subagent sessions directly in the sidebar, with pop-out to the editor.
 - **`Status Bar Indicator`:** Shows idle, connecting, connected, and error states at a glance.
 - **`One-Click Connect`:** Runs your OpenClaw command in a dedicated terminal.
 - **`Terminal Reuse`:** Keeps a single terminal session for quick reconnects.
@@ -80,7 +81,23 @@ Run the command palette action **OpenClaw: Model Setup Wizard** to:
 
 This is the fastest path from zero to a working model configuration.
 
-## Security Hardening (New)
+## Chat Panel
+
+Open the **OpenClaw** sidebar and click the **Chat** view to start a conversation about your codebase. Each message runs an ephemeral `acpx exec` session scoped to your workspace folder -- no persistent state, no session cleanup.
+
+- Type a question and press **Ctrl+Enter** (or click Send) to chat with the configured agent
+- Responses stream in with inline tool-call badges showing which files the agent reads
+- Click **Pop Out** to move the chat into a standalone editor panel
+- Click **Clear** to start a fresh session
+
+### Chat Settings
+
+- `openclaw.chat.agent`: Which agent to use (default: `codex`). Supports any agent in the `acpx` registry (`codex`, `gemini`, `opencode`, etc.)
+- `openclaw.chat.permissions`: Permission mode for the agent (default: `approve-reads`). Options: `approve-reads`, `approve-all`, `deny-all`
+
+> Requires `acpx` installed globally: `npm i -g acpx`
+
+## Security Hardening
 
 Run **OpenClaw: Harden** from the Command Palette or open the **OpenClaw → Hardening** view in the Activity Bar to:
 
@@ -97,6 +114,8 @@ This is a guided path for locking down common attack surfaces and permissions.
 - `openclaw.command`: Command to run when connecting (default: `openclaw status`)
 - `openclaw.hardening.mode`: Hardening workflow (`full`, `audit`, `auditFix`)
 - `openclaw.hardening.command`: Command prefix for hardening (default: `openclaw`)
+- `openclaw.chat.agent`: Agent for chat sessions (default: `codex`)
+- `openclaw.chat.permissions`: Permission mode for chat (default: `approve-reads`)
 
 For Windows with WSL, set: `openclaw.command` = `wsl openclaw status`
 

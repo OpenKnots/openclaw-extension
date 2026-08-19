@@ -166,6 +166,7 @@ openclaw channels login
 | `openclaw.hardening.mode` | `full` | Hardening workflow: `full`, `audit`, or `auditFix` |
 | `openclaw.hardening.command` | `openclaw` | Command prefix for hardening |
 | `openclaw.chat.agent` | `codex` | Agent for chat sessions (any `acpx` agent: `codex`, `gemini`, `opencode`, etc.) |
+| `openclaw.chat.acpxPath` | `` (empty) | Optional absolute command/path used to run `acpx` for chat |
 | `openclaw.chat.permissions` | `approve-reads` | Permission mode: `approve-reads`, `approve-all`, or `deny-all` |
 
 ### Windows + WSL
@@ -201,6 +202,10 @@ The Chat panel requires `acpx` installed globally:
 ```
 npm install -g acpx
 ```
+
+If VS Code still cannot find `acpx` (common with nvm/asdf/fnm shells), set
+`openclaw.chat.acpxPath` to the full executable path (for example
+`/home/USER/.nvm/versions/node/vX.Y.Z/bin/acpx`).
 
 ### Gateway not running
 

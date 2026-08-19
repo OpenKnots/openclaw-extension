@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
+import { dirname } from 'path';
 
 const log = vscode.window.createOutputChannel('OpenClaw Agent', { log: true });
 
@@ -79,10 +80,13 @@ export class ChatService {
             maxTokens,
         });
 
-        log.info(`spawn acpx ${args.join(' ')} (cwd=${cwd})`);
-        const child = spawn('acpx', args, {
+        const acpxCommand = this.resolveAcpxCommand(config);
+        const spawnEnv = this.buildSpawnEnv();
+
+        log.info(`spawn ${acpxCommand} ${args.join(' ')} (cwd=${cwd})`);
+        const child = spawn(acpxCommand, args, {
             cwd,
-            env: { ...process.env },
+            env: spawnEnv,
             stdio: ['ignore', 'pipe', 'pipe']
         });
 
@@ -142,11 +146,43 @@ export class ChatService {
             onEvent({
                 type: 'error',
                 message: err.message.includes('ENOENT')
-                    ? 'acpx not found. Install it with: npm i -g acpx'
+                    ? `${acpxCommand} not found. Configure openclaw.chat.acpxPath or install acpx with: npm i -g acpx`
                     : err.message
             });
             onEvent({ type: 'done' });
         });
+    }
+
+    private resolveAcpxCommand(config: vscode.WorkspaceConfiguration): string {
+        const configuredPath = (config.get<string>('chat.acpxPath', '') ?? '').trim();
+        if (configuredPath.length > 0) {
+            return configuredPath;
+        }
+
+        const envOverride = (process.env.ACPX_PATH ?? '').trim();
+        if (envOverride.length > 0) {
+            return envOverride;
+        }
+
+        return 'acpx';
+    }
+
+    private buildSpawnEnv(): NodeJS.ProcessEnv {
+        const env: NodeJS.ProcessEnv = { ...process.env };
+        const nodeBinDir = dirname(process.execPath);
+        const separator = process.platform === 'win32' ? ';' : ':';
+        const currentPath = env.PATH ?? '';
+        const pathEntries = currentPath.length > 0 ? currentPath.split(separator) : [];
+
+        // Extensions can start with a stripped PATH; include Node's bin dir so
+        // globally installed npm CLIs (including acpx) stay discoverable.
+        if (nodeBinDir && !pathEntries.includes(nodeBinDir)) {
+            env.PATH = currentPath.length > 0
+                ? `${nodeBinDir}${separator}${currentPath}`
+                : nodeBinDir;
+        }
+
+        return env;
     }
 
     abort(): void {

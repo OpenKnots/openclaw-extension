@@ -129,6 +129,11 @@
           "default": "codex",
           "description": "Agent to use for chat sessions (e.g. 'codex', 'gemini', 'opencode')"
         },
+        "openclaw.chat.acpxPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional absolute command/path used to run acpx for chat (leave empty to use PATH resolution)."
+        },
         "openclaw.chat.permissions": {
           "type": "string",
           "enum": [

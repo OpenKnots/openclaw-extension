@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execFile } from 'child_process';
 import { dirname } from 'path';
+import { promisify } from 'util';
 
 const log = vscode.window.createOutputChannel('OpenClaw Agent', { log: true });
+const execFileAsync = promisify(execFile);
 
 export type UsageInfo = {
     promptTokens: number;
@@ -19,8 +21,32 @@ export type ChatEvent =
 
 export class ChatService {
     private activeProcess: ChildProcess | null = null;
+    private static readonly KNOWN_ACPX_AGENTS = new Set([
+        'pi',
+        'openclaw',
+        'codex',
+        'claude',
+        'gemini',
+        'cursor',
+        'copilot',
+        'droid',
+        'fast-agent',
+        'grok-build',
+        'iflow',
+        'kilocode',
+        'kimi',
+        'kiro',
+        'mux',
+        'opencode',
+        'pool',
+        'qoder',
+        'qwen',
+        'trae',
+        'zeroclaw'
+    ]);
 
     private static readonly MODEL_SOURCE_MAP: Record<string, string> = {
+        openclaw: 'Gateway',
         codex: 'API',
         claude: 'API',
         'gpt-4o': 'API',
@@ -59,6 +85,17 @@ export class ChatService {
     ): void {
         this.abort();
 
+        void this.startMessage(prompt, cwd, model, chatType, onEvent);
+    }
+
+    private async startMessage(
+        prompt: string,
+        cwd: string,
+        model: string,
+        chatType: string,
+        onEvent: (event: ChatEvent) => void
+    ): Promise<void> {
+
         const config = vscode.workspace.getConfiguration('openclaw');
         const configuredPermissions = config.get<string>('chat.permissions', 'approve-reads');
         const permissions = ChatService.getPermissionsForChatType(chatType, configuredPermissions);
@@ -80,8 +117,8 @@ export class ChatService {
             maxTokens,
         });
 
-        const acpxCommand = this.resolveAcpxCommand(config);
         const spawnEnv = this.buildSpawnEnv();
+        const acpxCommand = await this.resolveLaunchCommand(config, spawnEnv);
 
         log.info(`spawn ${acpxCommand} ${args.join(' ')} (cwd=${cwd})`);
         const child = spawn(acpxCommand, args, {
@@ -94,6 +131,7 @@ export class ChatService {
 
         let stderrBuffer = '';
         let stdoutLineBuffer = '';
+        let emittedEvent = false;
 
         child.stdout!.on('data', (chunk: Buffer) => {
             stdoutLineBuffer += chunk.toString();
@@ -107,6 +145,7 @@ export class ChatService {
                 }
                 const event = this.parseLine(trimmed);
                 if (event) {
+                    emittedEvent = true;
                     onEvent(event);
                 }
             }
@@ -121,6 +160,7 @@ export class ChatService {
             if (stdoutLineBuffer.trim()) {
                 const event = this.parseLine(stdoutLineBuffer.trim());
                 if (event) {
+                    emittedEvent = true;
                     onEvent(event);
                 }
             }
@@ -130,8 +170,15 @@ export class ChatService {
             }
 
             if (code !== 0 && code !== null) {
-                const errMsg = stderrBuffer.trim() || `acpx exited with code ${code}`;
+                const errMsg = this.withActionableErrorHint(
+                    stderrBuffer.trim() || `acpx exited with code ${code}`,
+                    model
+                );
                 log.error(`acpx error: ${errMsg}`);
+                onEvent({ type: 'error', message: errMsg });
+            } else if (!emittedEvent && stderrBuffer.trim()) {
+                const errMsg = this.withActionableErrorHint(stderrBuffer.trim(), model);
+                log.warn(`acpx produced no parseable stdout, stderr=${errMsg}`);
                 onEvent({ type: 'error', message: errMsg });
             }
 
@@ -153,6 +200,35 @@ export class ChatService {
         });
     }
 
+    private async resolveLaunchCommand(
+        config: vscode.WorkspaceConfiguration,
+        env: NodeJS.ProcessEnv
+    ): Promise<string> {
+        const command = this.resolveAcpxCommand(config);
+        if (!this.isDefaultAcpxCommand(command)) {
+            return command;
+        }
+
+        const fromCurrentEnv = await this.probeCommand(command, env);
+        if (fromCurrentEnv) {
+            return fromCurrentEnv;
+        }
+
+        const fromInteractiveShell = await this.probeCommand(command, env, 'interactive');
+        if (fromInteractiveShell) {
+            log.info(`resolved ${command} via interactive shell: ${fromInteractiveShell}`);
+            return fromInteractiveShell;
+        }
+
+        const fromLoginShell = await this.probeCommand(command, env, 'login');
+        if (fromLoginShell) {
+            log.info(`resolved ${command} via login shell: ${fromLoginShell}`);
+            return fromLoginShell;
+        }
+
+        return command;
+    }
+
     private resolveAcpxCommand(config: vscode.WorkspaceConfiguration): string {
         const configuredPath = (config.get<string>('chat.acpxPath', '') ?? '').trim();
         if (configuredPath.length > 0) {
@@ -165,6 +241,58 @@ export class ChatService {
         }
 
         return 'acpx';
+    }
+
+    private isDefaultAcpxCommand(command: string): boolean {
+        const normalized = command.trim().toLowerCase();
+        return normalized === 'acpx' || normalized === 'acpx.exe';
+    }
+
+    private async probeCommand(
+        command: string,
+        env: NodeJS.ProcessEnv,
+        shellMode: 'current' | 'interactive' | 'login' = 'current'
+    ): Promise<string | null> {
+        const escapedCommand = this.escapeShellWord(command);
+        if (!escapedCommand) {
+            return null;
+        }
+
+        try {
+            if (process.platform === 'win32') {
+                const { stdout } = await execFileAsync('where', [command], { env });
+                return this.firstOutputLine(stdout);
+            }
+
+            if (shellMode !== 'current') {
+                const shell = process.env.SHELL || '/bin/bash';
+                const shellArgs = shellMode === 'interactive'
+                    ? ['-ic', `command -v ${escapedCommand}`]
+                    : ['-ilc', `command -v ${escapedCommand}`];
+                const { stdout } = await execFileAsync(shell, shellArgs, { env });
+                return this.firstOutputLine(stdout);
+            }
+
+            const { stdout } = await execFileAsync('sh', ['-c', `command -v ${escapedCommand}`], { env });
+            return this.firstOutputLine(stdout);
+        } catch {
+            return null;
+        }
+    }
+
+    private firstOutputLine(value: string | Buffer): string | null {
+        const text = value.toString().trim();
+        if (!text) {
+            return null;
+        }
+        return text.split(/\r?\n/)[0]?.trim() || null;
+    }
+
+    private escapeShellWord(value: string): string | null {
+        if (!value) {
+            return null;
+        }
+        return `'${value.replace(/'/g, `'\\''`)}'`;
     }
 
     private buildSpawnEnv(): NodeJS.ProcessEnv {
@@ -206,7 +334,7 @@ export class ChatService {
     }
 
     private buildArgs(
-        agent: string,
+        agentOrModel: string,
         permissions: string,
         prompt: string,
         _options?: { thinkingLevel?: string; temperature?: number; maxTokens?: number }
@@ -220,12 +348,46 @@ export class ChatService {
             args.push(permFlag);
         }
 
-        if (agent && agent !== 'codex') {
-            args.push(agent);
+        const agentSelection = this.resolveAgentSelection(agentOrModel);
+        if (agentSelection.agent !== 'codex') {
+            args.push(agentSelection.agent);
+        }
+        if (agentSelection.modelOverride) {
+            args.push('--model', agentSelection.modelOverride);
         }
 
         args.push('exec', prompt);
         return args;
+    }
+
+    private resolveAgentSelection(value: string): { agent: string; modelOverride?: string } {
+        const normalized = value.trim();
+        if (!normalized) {
+            return { agent: 'codex' };
+        }
+
+        const lower = normalized.toLowerCase();
+        if (lower === 'ollama' || lower.startsWith('ollama:') || lower.startsWith('ollama/')) {
+            return { agent: 'openclaw', modelOverride: normalized };
+        }
+        if (ChatService.KNOWN_ACPX_AGENTS.has(lower)) {
+            return { agent: lower };
+        }
+
+        return { agent: 'codex', modelOverride: normalized };
+    }
+
+    private withActionableErrorHint(message: string, selectedModel: string): string {
+        const lower = message.toLowerCase();
+        if (lower.includes('credit balance is too low') || lower.includes('insufficient credits')) {
+            return `${message}\n\nTip: switch OpenClaw Chat model to 'openclaw' or 'ollama' to use your local gateway/runtime instead of cloud credits.`;
+        }
+
+        if (lower.includes('exited with code 1') && selectedModel.toLowerCase() === 'ollama') {
+            return `${message}\n\nTip: 'ollama' is routed through the 'openclaw' agent. Ensure openclaw gateway is running and configured for ollama.`;
+        }
+
+        return message;
     }
 
     private permissionFlag(permissions: string): string | null {
@@ -243,6 +405,10 @@ export class ChatService {
     private parseLine(line: string): ChatEvent | null {
         try {
             const obj = JSON.parse(line);
+            const rpcEvent = this.mapJsonRpcEvent(obj as Record<string, unknown>);
+            if (rpcEvent) {
+                return rpcEvent;
+            }
             return this.mapJsonEvent(obj);
         } catch {
             if (line.length > 0) {
@@ -252,11 +418,72 @@ export class ChatService {
         }
     }
 
+    private mapJsonRpcEvent(obj: Record<string, unknown>): ChatEvent | null {
+        if (obj.jsonrpc !== '2.0') {
+            return null;
+        }
+
+        const error = obj.error as Record<string, unknown> | undefined;
+        if (error) {
+            const message = this.extractText(error.message ?? error.data ?? error.code) ?? 'Unknown ACP error';
+            return { type: 'error', message };
+        }
+
+        const method = obj.method as string | undefined;
+        if (method === 'session/update') {
+            const params = obj.params as Record<string, unknown> | undefined;
+            const update = params?.update as Record<string, unknown> | undefined;
+            const kind = update?.sessionUpdate as string | undefined;
+
+            if (kind === 'agent_message_chunk') {
+                const text = this.extractText(update?.content);
+                if (text) {
+                    return { type: 'text', text };
+                }
+            }
+
+            if (kind === 'usage_update') {
+                const used = Number(update?.used ?? 0);
+                if (used > 0) {
+                    return {
+                        type: 'usage',
+                        usage: {
+                            promptTokens: 0,
+                            completionTokens: 0,
+                            totalTokens: used
+                        }
+                    };
+                }
+            }
+
+            return null;
+        }
+
+        const result = obj.result as Record<string, unknown> | undefined;
+        if (result?.usage && typeof result.usage === 'object') {
+            const usage = result.usage as Record<string, unknown>;
+            const promptTokens = Number(usage.inputTokens ?? usage.input_tokens ?? 0);
+            const completionTokens = Number(usage.outputTokens ?? usage.output_tokens ?? 0);
+            const totalTokens = Number(usage.totalTokens ?? promptTokens + completionTokens);
+            return {
+                type: 'usage',
+                usage: {
+                    promptTokens,
+                    completionTokens,
+                    totalTokens
+                }
+            };
+        }
+
+        return null;
+    }
+
     private mapJsonEvent(obj: Record<string, unknown>): ChatEvent | null {
-        const eventType = obj.type as string | undefined;
+        const payload = this.unwrapEventPayload(obj);
+        const eventType = payload.type as string | undefined;
 
         if (eventType === 'message' || eventType === 'content' || eventType === 'text') {
-            const text = (obj.content ?? obj.text ?? obj.data ?? '') as string;
+            const text = this.extractText(payload.content ?? payload.text ?? payload.data);
             if (text) {
                 return { type: 'text', text };
             }
@@ -264,8 +491,8 @@ export class ChatService {
         }
 
         if (eventType === 'content_block_delta' || eventType === 'delta') {
-            const delta = obj.delta as Record<string, unknown> | undefined;
-            const text = (delta?.text ?? delta?.content ?? obj.text ?? '') as string;
+            const delta = payload.delta as Record<string, unknown> | undefined;
+            const text = this.extractText(delta?.text ?? delta?.content ?? payload.text);
             if (text) {
                 return { type: 'text', text };
             }
@@ -273,28 +500,29 @@ export class ChatService {
         }
 
         if (eventType === 'tool_call' || eventType === 'tool_use') {
-            const title = (obj.title ?? obj.name ?? obj.tool ?? 'tool') as string;
-            const status = (obj.status ?? 'running') as string;
+            const title = (payload.title ?? payload.name ?? payload.tool ?? 'tool') as string;
+            const status = (payload.status ?? 'running') as string;
             return {
                 type: 'toolCall',
                 title,
                 status,
-                details: this.stringifyToolEvent(obj)
+                details: this.stringifyToolEvent(payload)
             };
         }
 
         if (eventType === 'tool_result') {
-            const title = (obj.title ?? obj.name ?? obj.tool ?? 'tool') as string;
+            const title = (payload.title ?? payload.name ?? payload.tool ?? 'tool') as string;
             return {
                 type: 'toolCall',
                 title,
                 status: 'done',
-                details: this.stringifyToolEvent(obj)
+                details: this.stringifyToolEvent(payload)
             };
         }
 
         if (eventType === 'error') {
-            return { type: 'error', message: (obj.message ?? obj.error ?? 'Unknown error') as string };
+            const message = this.extractText(payload.message ?? payload.error) ?? 'Unknown error';
+            return { type: 'error', message };
         }
 
         if (eventType === 'done' || eventType === 'end' || eventType === 'complete') {
@@ -302,15 +530,15 @@ export class ChatService {
         }
 
         if (eventType === 'assistant' || eventType === 'response') {
-            const text = (obj.content ?? obj.text ?? obj.message ?? '') as string;
+            const text = this.extractText(payload.content ?? payload.text ?? payload.message);
             if (text) {
                 return { type: 'text', text };
             }
         }
 
         // Parse usage/token metadata from various event shapes
-        if (eventType === 'usage' || eventType === 'message_stop' || obj.usage) {
-            const usage = (obj.usage ?? obj) as Record<string, unknown>;
+        if (eventType === 'usage' || eventType === 'message_stop' || payload.usage) {
+            const usage = (payload.usage ?? payload) as Record<string, unknown>;
             const promptTokens = Number(usage.input_tokens ?? usage.prompt_tokens ?? usage.promptTokens ?? 0);
             const completionTokens = Number(usage.output_tokens ?? usage.completion_tokens ?? usage.completionTokens ?? 0);
             if (promptTokens > 0 || completionTokens > 0) {
@@ -325,11 +553,51 @@ export class ChatService {
             }
         }
 
-        if (typeof obj.text === 'string' && obj.text) {
-            return { type: 'text', text: obj.text };
+        const inferredText = this.extractText(payload.text ?? payload.content ?? payload.message ?? payload.data);
+        if (inferredText) {
+            return { type: 'text', text: inferredText };
         }
 
+        if (eventType) {
+            log.debug(`acpx unhandled event type: ${eventType}`);
+        }
         return null;
+    }
+
+    private unwrapEventPayload(obj: Record<string, unknown>): Record<string, unknown> {
+        const nested = obj.event;
+        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+            return nested as Record<string, unknown>;
+        }
+        return obj;
+    }
+
+    private extractText(value: unknown): string | null {
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        if (Array.isArray(value)) {
+            const chunks = value
+                .map((item) => this.extractText(item))
+                .filter((item): item is string => Boolean(item));
+            return chunks.length > 0 ? chunks.join('') : null;
+        }
+
+        if (!value || typeof value !== 'object') {
+            return null;
+        }
+
+        const record = value as Record<string, unknown>;
+        return this.extractText(
+            record.text
+            ?? record.content
+            ?? record.message
+            ?? record.data
+            ?? record.delta
+            ?? record.output_text
+            ?? record.value
+        );
     }
 
     private stringifyToolEvent(obj: Record<string, unknown>): string {

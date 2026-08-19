@@ -126,8 +126,8 @@
         },
         "openclaw.chat.agent": {
           "type": "string",
-          "default": "codex",
-          "description": "Agent to use for chat sessions (e.g. 'codex', 'gemini', 'opencode')"
+          "default": "openclaw",
+          "description": "Agent to use for chat sessions (e.g. 'openclaw', 'ollama', 'codex')"
         },
         "openclaw.chat.acpxPath": {
           "type": "string",
@@ -150,9 +150,9 @@
             "type": "string"
           },
           "default": [
-            "codex",
-            "claude",
-            "opencode"
+            "openclaw",
+            "ollama",
+            "codex"
           ],
           "description": "Available models shown in the chat model picker"
         },
@@ -211,7 +211,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run compile",
+    "vscode:prepublish": "npm run compile",
     "compile": "node esbuild.mjs --production",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -p ./ --noEmit",

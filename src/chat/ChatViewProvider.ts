@@ -369,7 +369,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private createThreadState(inheritFrom?: ChatThreadState): ChatThreadState {
         this.threadCounter += 1;
         const config = vscode.workspace.getConfiguration('openclaw');
-        const baseModel = inheritFrom?.currentModel ?? config.get<string>('chat.agent', 'codex');
+        const baseModel = inheritFrom?.currentModel ?? config.get<string>('chat.agent', 'openclaw');
         const baseType = inheritFrom?.currentChatType ?? 'chat';
         const index = this.threadCounter;
 
@@ -607,7 +607,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private getAvailableModels(): string[] {
         const config = vscode.workspace.getConfiguration('openclaw');
         return config.get<string[]>('chat.models', [
-            'codex', 'claude', 'opencode'
+            'openclaw', 'ollama', 'codex'
         ]);
     }
 

@@ -10,7 +10,7 @@ if command -v bun >/dev/null 2>&1; then
 fi
 
 echo "Compiling..."
-pnpm run compile
+npm run compile
 
 VERSION="$(node -p "require('./package.json').version")"
 VSIX="openclaw-extension-${VERSION}.vsix"

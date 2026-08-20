@@ -21,6 +21,7 @@ export type ChatEvent =
 
 export class ChatService {
     private activeProcess: ChildProcess | null = null;
+    private readonly ensuredSessions = new Set<string>();
     private static readonly KNOWN_ACPX_AGENTS = new Set([
         'pi',
         'openclaw',
@@ -81,11 +82,12 @@ export class ChatService {
         cwd: string,
         model: string,
         chatType: string,
+        sessionName: string,
         onEvent: (event: ChatEvent) => void
     ): void {
         this.abort();
 
-        void this.startMessage(prompt, cwd, model, chatType, onEvent);
+        void this.startMessage(prompt, cwd, model, chatType, sessionName, onEvent);
     }
 
     private async startMessage(
@@ -93,6 +95,7 @@ export class ChatService {
         cwd: string,
         model: string,
         chatType: string,
+        sessionName: string,
         onEvent: (event: ChatEvent) => void
     ): Promise<void> {
 
@@ -111,7 +114,7 @@ export class ChatService {
             fullPrompt = systemPrompt + '\n\n' + fullPrompt;
         }
 
-        const args = this.buildArgs(model, permissions, fullPrompt, {
+        const args = this.buildArgs(model, permissions, fullPrompt, sessionName, {
             thinkingLevel,
             temperature,
             maxTokens,
@@ -119,6 +122,7 @@ export class ChatService {
 
         const spawnEnv = this.buildSpawnEnv();
         const acpxCommand = await this.resolveLaunchCommand(config, spawnEnv);
+        await this.ensureSession(acpxCommand, spawnEnv, cwd, model, sessionName);
 
         log.info(`spawn ${acpxCommand} ${args.join(' ')} (cwd=${cwd})`);
         const child = spawn(acpxCommand, args, {
@@ -198,6 +202,39 @@ export class ChatService {
             });
             onEvent({ type: 'done' });
         });
+    }
+
+    private async ensureSession(
+        acpxCommand: string,
+        env: NodeJS.ProcessEnv,
+        cwd: string,
+        agentOrModel: string,
+        sessionName: string
+    ): Promise<void> {
+        const normalizedSession = sessionName.trim();
+        if (!normalizedSession) {
+            return;
+        }
+
+        const agentSelection = this.resolveAgentSelection(agentOrModel);
+        const cacheKey = `${agentSelection.agent}::${normalizedSession}`;
+        if (this.ensuredSessions.has(cacheKey)) {
+            return;
+        }
+
+        try {
+            await execFileAsync(
+                acpxCommand,
+                [agentSelection.agent, 'sessions', 'ensure', '--name', normalizedSession],
+                { env, cwd }
+            );
+            this.ensuredSessions.add(cacheKey);
+            log.info(`ensured acpx session ${normalizedSession} for agent=${agentSelection.agent}`);
+        } catch (err) {
+            // Best effort: prompt may still work if a session already exists.
+            const message = err instanceof Error ? err.message : String(err);
+            log.warn(`failed to ensure acpx session ${normalizedSession}: ${message}`);
+        }
     }
 
     private async resolveLaunchCommand(
@@ -337,6 +374,7 @@ export class ChatService {
         agentOrModel: string,
         permissions: string,
         prompt: string,
+        sessionName: string,
         _options?: { thinkingLevel?: string; temperature?: number; maxTokens?: number }
     ): string[] {
         const args: string[] = [];
@@ -349,14 +387,19 @@ export class ChatService {
         }
 
         const agentSelection = this.resolveAgentSelection(agentOrModel);
-        if (agentSelection.agent !== 'codex') {
-            args.push(agentSelection.agent);
-        }
         if (agentSelection.modelOverride) {
             args.push('--model', agentSelection.modelOverride);
         }
 
-        args.push('exec', prompt);
+        // Use explicit agent command so agent-scoped flags like --session are always valid.
+        args.push(agentSelection.agent);
+
+        const normalizedSession = sessionName.trim();
+        if (normalizedSession) {
+            args.push('--session', normalizedSession);
+        }
+
+        args.push('prompt', prompt);
         return args;
     }
 

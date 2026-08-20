@@ -87,7 +87,7 @@ describe('ChatService acpx resolution', () => {
         const service = new ChatService();
         const onEvent = vi.fn();
 
-        service.sendMessage('hello', process.cwd(), 'codex', 'chat', onEvent);
+        service.sendMessage('hello', process.cwd(), 'codex', 'chat', 'thread-1', onEvent);
         await new Promise((resolve) => setImmediate(resolve));
 
         expect(spawnMock).toHaveBeenCalledTimes(1);
@@ -103,6 +103,63 @@ describe('ChatService acpx resolution', () => {
             expect.any(Object),
             expect.any(Function)
         );
+    });
+
+    it('ensures named session before prompt', async () => {
+        const fakeChild = createFakeChildProcess();
+        spawnMock.mockReturnValue(fakeChild);
+
+        execFileMock.mockImplementation(
+            (
+                file: string,
+                args: string[],
+                _options: unknown,
+                callback: (error: Error | null, stdout: string, stderr: string) => void
+            ) => {
+                if (file === 'sh') {
+                    callback(null, '/usr/local/bin/acpx\n', '');
+                    return;
+                }
+                if (file === '/usr/local/bin/acpx' && args[0] === 'codex' && args[1] === 'sessions' && args[2] === 'ensure') {
+                    callback(null, 'session-id\n', '');
+                    return;
+                }
+                callback(new Error('unexpected'), '', '');
+            }
+        );
+
+        const configGet = vi.fn((key: string, defaultValue?: unknown) => {
+            if (key === 'chat.acpxPath') {
+                return '';
+            }
+            return defaultValue;
+        });
+        vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+            get: configGet,
+            update: vi.fn(),
+        } as unknown as vscode.WorkspaceConfiguration);
+
+        const service = new ChatService();
+        const onEvent = vi.fn();
+
+        service.sendMessage('hello', process.cwd(), 'codex', 'chat', 'thread-42', onEvent);
+        await new Promise((resolve) => setImmediate(resolve));
+
+        const ensureCall = execFileMock.mock.calls.find((call) => {
+            const [file, args] = call as [string, string[]];
+            return (
+                (file === '/usr/local/bin/acpx' || file.includes('acpx')) &&
+                Array.isArray(args) &&
+                args[0] === 'codex' &&
+                args[1] === 'sessions' &&
+                args[2] === 'ensure' &&
+                args[3] === '--name' &&
+                args[4] === 'thread-42'
+            );
+        });
+
+        expect(ensureCall).toBeTruthy();
+        expect(spawnMock).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -163,23 +220,39 @@ describe('ChatService event parsing', () => {
 describe('ChatService arg building', () => {
     it('normalizes uppercase CODEX to default codex agent command', () => {
         const service = new ChatService() as unknown as {
-            buildArgs: (agent: string, permissions: string, prompt: string) => string[];
+            buildArgs: (agent: string, permissions: string, prompt: string, sessionName: string) => string[];
         };
 
-        const args = service.buildArgs('CODEX', 'approve-reads', 'Hello');
+        const args = service.buildArgs('CODEX', 'approve-reads', 'Hello', 'thread-1');
         expect(args).not.toContain('CODEX');
-        expect(args).toEqual(['--format', 'json', '--approve-reads', 'exec', 'Hello']);
+        expect(args).toEqual(['--format', 'json', '--approve-reads', 'codex', '--session', 'thread-1', 'prompt', 'Hello']);
     });
 
     it('routes ollama model through openclaw agent', () => {
         const service = new ChatService() as unknown as {
-            buildArgs: (agent: string, permissions: string, prompt: string) => string[];
+            buildArgs: (agent: string, permissions: string, prompt: string, sessionName: string) => string[];
         };
 
-        const args = service.buildArgs('ollama', 'approve-reads', 'Hello');
+        const args = service.buildArgs('ollama', 'approve-reads', 'Hello', 'thread-2');
         expect(args).toContain('openclaw');
+        expect(args).toContain('--session');
+        expect(args).toContain('thread-2');
+        expect(args).toContain('prompt');
         expect(args).toContain('--model');
         expect(args).toContain('ollama');
+
+        expect(args).toEqual([
+            '--format',
+            'json',
+            '--approve-reads',
+            '--model',
+            'ollama',
+            'openclaw',
+            '--session',
+            'thread-2',
+            'prompt',
+            'Hello'
+        ]);
     });
 });
 

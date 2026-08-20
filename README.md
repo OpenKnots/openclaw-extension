@@ -30,7 +30,7 @@ OpenClaw can split the chat into multiple panes so you can work on separate thre
 
 ### Chat Panel
 
-An AI chat interface lives in the OpenClaw sidebar. Each message spawns an ephemeral `acpx exec` session scoped to your workspace — no persistent state, no cleanup.
+An AI chat interface lives in the OpenClaw sidebar. Messages use persistent `acpx prompt` sessions scoped per thread, so context carries across turns until you clear or close the thread.
 
 - **Slash commands** — type `/` to open the autocomplete dropdown, then pick a command:
 

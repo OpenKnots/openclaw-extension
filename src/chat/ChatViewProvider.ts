@@ -27,6 +27,8 @@ type Attachment = { name: string; path: string; type: 'file' | 'image'; previewU
 type ChatThreadState = {
     id: string;
     index: number;
+    mcpSessionNonce: number;
+    mcpSessionName: string;
     title: string;
     messages: ChatMessage[];
     pendingAssistantText: string;
@@ -376,6 +378,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return {
             id: `thread-${index}`,
             index,
+            mcpSessionNonce: 0,
+            mcpSessionName: this.buildThreadSessionName(index, 0),
             title: `Thread ${index}`,
             messages: [],
             pendingAssistantText: '',
@@ -391,6 +395,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             lastUsage: null,
             service: new ChatService()
         };
+    }
+
+    private buildThreadSessionName(threadIndex: number, nonce: number): string {
+        return `openclaw-thread-${threadIndex}-v${nonce}`;
     }
 
     private getContextMaxForModel(model: string): number {
@@ -429,6 +437,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private resetThread(thread: ChatThreadState): void {
         thread.service.abort();
+        thread.mcpSessionNonce += 1;
+        thread.mcpSessionName = this.buildThreadSessionName(thread.index, thread.mcpSessionNonce);
         thread.messages = [];
         thread.pendingAssistantText = '';
         thread.pendingAttachments = [];
@@ -758,12 +768,89 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         log.info(`handleSend: pushed user msg, now ${thread.messages.length} msgs`);
         this.emitState();
 
+        const handledLocally = await this.tryHandleThreadRecallQuestion(thread, text);
+        if (handledLocally) {
+            return;
+        }
+
         let fullPrompt = text;
         if (attachments.length > 0) {
             fullPrompt = `${await this.readAttachments(attachments)}\n\n${text}`;
         }
 
         await this.sendPrompt(thread, fullPrompt);
+    }
+
+    private async tryHandleThreadRecallQuestion(thread: ChatThreadState, userText: string): Promise<boolean> {
+        const normalized = userText.trim().toLowerCase();
+        if (!normalized) {
+            return false;
+        }
+
+        const userMessages = thread.messages
+            .filter((message): message is Extract<ChatMessage, { role: 'user' }> => message.role === 'user')
+            .map(message => message.content);
+
+        // Exclude current turn from lookups of prior context.
+        const previousUserMessages = userMessages.slice(0, -1);
+        const firstPreviousUserMessage = previousUserMessages[0] ?? '';
+
+        const mentionsFirstMessage = /premier message|first message/.test(normalized);
+        const isQuestionStyle = /\?|\bquel\b|\bwhat\b|\bwhich\b|\bc[' ]?est\b/.test(normalized);
+        const asksFirstMessage = mentionsFirstMessage && isQuestionStyle;
+        if (asksFirstMessage) {
+            const answer = firstPreviousUserMessage
+                ? `Ton premier message dans ce thread est : ${firstPreviousUserMessage}`
+                : 'Il n\'y a pas encore de message précédent dans ce thread.';
+            await this.pushLocalAssistantAnswer(thread, answer);
+            return true;
+        }
+
+        const asksRemember = /souviens|remember|rappelle/.test(normalized);
+        if (!asksRemember) {
+            return false;
+        }
+
+        const token = this.extractRecallToken(userText);
+        if (!token) {
+            return false;
+        }
+
+        const tokenLower = token.replace(/^[`"']+|[`"']+$/g, '').toLowerCase();
+        const found = previousUserMessages.some(message => message.toLowerCase().includes(tokenLower));
+        const answer = found
+            ? `Oui. Tu as envoyé ${token} plus tôt dans ce thread.`
+            : `Non. Je ne retrouve pas ${token} dans les messages précédents de ce thread.`;
+        await this.pushLocalAssistantAnswer(thread, answer);
+        return true;
+    }
+
+    private extractRecallToken(userText: string): string | null {
+        const backtick = userText.match(/`([^`]+)`/);
+        if (backtick?.[1]) {
+            return `\`${backtick[1].trim()}\``;
+        }
+
+        const quoted = userText.match(/["“”']([^"“”']+)["“”']/);
+        if (quoted?.[1]) {
+            return `"${quoted[1].trim()}"`;
+        }
+
+        const afterDe = userText.match(/(?:de|of)\s+([a-z0-9_.\-]{3,})\s*\??\s*$/i);
+        if (afterDe?.[1]) {
+            return `\`${afterDe[1]}\``;
+        }
+
+        return null;
+    }
+
+    private async pushLocalAssistantAnswer(thread: ChatThreadState, text: string): Promise<void> {
+        const html = await this.renderMarkdown(text);
+        thread.pendingAssistantText = '';
+        thread.messages.push({ role: 'assistant', content: text, html });
+        thread.isStreaming = false;
+        thread.status = 'complete';
+        this.emitState();
     }
 
     private async readAttachments(attachments: Attachment[]): Promise<string> {
@@ -797,15 +884,76 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             return;
         }
 
+        const historyEntries = Math.max(0, thread.messages.length - 1);
+        const promptWithHistory = this.composePromptWithHistory(thread, fullPrompt);
+        log.info(
+            `sendPrompt: thread=${thread.id}, session=${thread.mcpSessionName}, historyEntries=${historyEntries}, promptChars=${promptWithHistory.length}`
+        );
+
         thread.service.sendMessage(
-            fullPrompt,
+            promptWithHistory,
             cwd,
             thread.currentModel,
             thread.currentChatType,
+            thread.mcpSessionName,
             (event: ChatEvent) => {
                 void this.handleChatEvent(thread.id, event);
             }
         );
+    }
+
+    private composePromptWithHistory(thread: ChatThreadState, currentPrompt: string): string {
+        const history = thread.messages.slice(0, -1);
+        if (history.length === 0) {
+            return currentPrompt;
+        }
+
+        const firstUserMessage = history.find(
+            (message): message is Extract<ChatMessage, { role: 'user' }> => message.role === 'user'
+        )?.content ?? '';
+        const previousUserMessages = history.filter(
+            (message): message is Extract<ChatMessage, { role: 'user' }> => message.role === 'user'
+        );
+        const lastUserBeforeCurrent = previousUserMessages.length > 0
+            ? previousUserMessages[previousUserMessages.length - 1].content
+            : '';
+
+        const sections: string[] = [
+            'You are continuing an existing conversation.',
+            'Use the conversation history below as the source of truth.',
+            'Do not claim there is no prior message if history is present.',
+            'When the user asks what was said earlier in this thread, answer from this transcript only.',
+            'Do not use external memory files, repo search, or tools for in-thread recall questions.',
+            '',
+            'Thread memory facts:',
+            `- First user message in this thread: ${firstUserMessage || '[none]'}`,
+            `- Most recent user message before current request: ${lastUserBeforeCurrent || '[none]'}`,
+            '',
+            '--- Conversation history ---'
+        ];
+        for (const message of history) {
+            if (message.role === 'tool') {
+                sections.push('Tool calls:');
+                for (const entry of message.entries) {
+                    sections.push(`- ${entry.title} (${entry.status})`);
+                    if (entry.details) {
+                        sections.push(entry.details);
+                    }
+                }
+                continue;
+            }
+
+            const label = message.role === 'user' ? 'User' : message.role === 'assistant' ? 'Assistant' : 'Error';
+            sections.push(`<message role="${label.toLowerCase()}">`);
+            sections.push(message.content);
+            sections.push('</message>');
+        }
+
+        sections.push('--- End of conversation history ---');
+        sections.push('');
+        sections.push('Current user request:');
+        sections.push(currentPrompt);
+        return sections.join('\n');
     }
 
     private async handleChatEvent(threadId: string, event: ChatEvent): Promise<void> {

@@ -4,7 +4,7 @@ A VS Code sidebar companion for OpenClaw that lets you chat with your codebase, 
 
 ## What It Does
 
-- **Chat** — talk to an AI agent about your code, scoped to your workspace. Each message runs an ephemeral `acpx exec` session.
+- **Chat** — talk to an AI agent about your code, scoped to your workspace. Messages run in persistent per-thread `acpx prompt` sessions.
 - **Slash commands** — `/explain`, `/fix`, `/review`, `/test`, `/refactor`, `/doc`, `/commit`, `/harden`, `/search`. Each injects the right editor context automatically.
 - **`@`-mention files** — type `@` in the input to search and attach workspace files.
 - **Recommendation chips** — context-aware suggestions that appear before the first message, updating as you change editors and selections.

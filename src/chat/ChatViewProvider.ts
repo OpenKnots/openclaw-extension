@@ -806,7 +806,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             return true;
         }
 
-        const asksRemember = /souviens|remember|rappelle/.test(normalized);
+        const asksRemember = /souviens|souciens|remember|rappelle/.test(normalized);
         if (!asksRemember) {
             return false;
         }
@@ -836,9 +836,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             return `"${quoted[1].trim()}"`;
         }
 
-        const afterDe = userText.match(/(?:de|of)\s+([a-z0-9_.\-]{3,})\s*\??\s*$/i);
+        const afterDe = userText.match(/(?:de|of)\s+(.+?)\s*\??\s*$/i);
         if (afterDe?.[1]) {
-            return `\`${afterDe[1]}\``;
+            const token = afterDe[1].trim().replace(/^[`"']+|[`"']+$/g, '').trim();
+            if (token.length >= 3) {
+                return `\`${token}\``;
+            }
         }
 
         return null;

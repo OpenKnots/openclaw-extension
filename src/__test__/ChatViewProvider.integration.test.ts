@@ -139,4 +139,45 @@ describe('ChatViewProvider integration', () => {
         expect(lastAssistant.content).toContain('Tu as envoyé');
         expect(lastAssistant.content).toContain('pingtest857');
     });
+
+    it('answers local recall questions for multi-word remembered text', async () => {
+        const provider = new ChatViewProvider(vscode.Uri.file('/tmp/test-ext'), makeContext());
+        const { view, getOnMessage } = makeWebviewView();
+        provider.resolveWebviewView(view, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
+
+        const onMessage = getOnMessage();
+        expect(onMessage).toBeTypeOf('function');
+
+        const activeThreadId = (provider as unknown as { activeThreadId: string }).activeThreadId;
+        const threads = (provider as unknown as {
+            threads: Map<string, {
+                messages: Array<{ role: string; content: string }>;
+                service: { sendMessage: (...args: unknown[]) => void }
+            }>
+        }).threads;
+        const thread = threads.get(activeThreadId);
+        expect(thread).toBeDefined();
+
+        const sendMessageSpy = vi.spyOn(thread!.service, 'sendMessage').mockImplementation((prompt, _cwd, _model, _chatType, _sessionName, onEvent) => {
+            if (typeof onEvent === 'function') {
+                onEvent({ type: 'text', text: 'pong ✨' });
+                onEvent({ type: 'done' });
+            }
+            return undefined;
+        });
+
+        await onMessage!({ type: 'send', threadId: activeThreadId, text: 'ping test 58894' });
+        expect(sendMessageSpy).toHaveBeenCalledTimes(1);
+
+        await onMessage!({ type: 'send', threadId: activeThreadId, text: 'te souciens tu de ping test 58894 ?' });
+        expect(sendMessageSpy).toHaveBeenCalledTimes(1);
+
+        const latestThread = threads.get(activeThreadId);
+        const assistantMessages = (latestThread?.messages || []).filter(m => m.role === 'assistant');
+        const lastAssistant = assistantMessages[assistantMessages.length - 1];
+
+        expect(lastAssistant).toBeDefined();
+        expect(lastAssistant.content).toContain('Tu as envoyé');
+        expect(lastAssistant.content).toContain('ping test 58894');
+    });
 });
